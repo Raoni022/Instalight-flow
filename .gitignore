@@ -16,3 +16,10 @@ npm-debug.log*
 # Secrets / env
 .env
 .env.local
+
+# Build output
+dist/
+dist-ssr/
+
+# TypeScript cache
+*.tsbuildinfo
