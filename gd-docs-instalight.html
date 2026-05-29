@@ -794,6 +794,14 @@ const pdfFooter=(doc,fd,page,total)=>{
   doc.text(`${fd.cidade||'Porto Alegre'} | ${fd.dataproject||''} | RT: ${fd.nomeResponsavel||'—'} | Página ${page}/${total}`,W-14,H-6,{align:'right'});
 };
 
+// Gera nome de arquivo padronizado: instalight_{tipo}_{uc}_{YYYY-MM-DD}.{ext}
+// Exemplo: instalight_memorial_1234567890_2026-05-29.pdf
+const makeFilename=(tipo,fd,ext='pdf')=>{
+  const uc=(fd.codigoUC||'').replace(/[^\w]/g,'').slice(0,20)||'uc';
+  const data=new Date().toISOString().slice(0,10);
+  return `instalight_${tipo}_${uc}_${data}.${ext}`;
+};
+
 const addTextBlock=(doc,text,marginL,marginR,startY,lineH=5.5)=>{
   const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
   const maxW=W-marginL-marginR;
@@ -856,7 +864,7 @@ const exportarProcuracaoPDFStandalone=(fd,calc)=>{
   doc.text('Art. 9° — REN ANEEL n° 1.000/2021',doc.internal.pageSize.getWidth()/2,42,{align:'center'});
   addTextBlock(doc,gerarTextoProcuracao(fd,calc),14,14,52,5.5);
   pdfFooter(doc,fd,1,1);
-  doc.save(`procuracao_${fd.nomeCliente||'instalight'}.pdf`);
+  doc.save(makeFilename('procuracao',fd));
 };
 
 const exportarFormularioPDFStandalone=(fd,calc)=>{
@@ -897,7 +905,7 @@ const exportarFormularioPDFStandalone=(fd,calc)=>{
   doc.text('⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',14,y);
   doc.setTextColor(30);
   pdfFooter(doc,fd,1,1);
-  doc.save(`formulario_ceee_${fd.nomeCliente||'instalight'}.pdf`);
+  doc.save(makeFilename('formulario_ceee',fd));
 };
 
 const exportarPendenciasPDFStandalone=(fd,calc,docsGerados)=>{
@@ -947,7 +955,7 @@ const exportarPendenciasPDFStandalone=(fd,calc,docsGerados)=>{
   y+=4;doc.setFontSize(8);doc.setTextColor(100);
   doc.text('Dúvidas? Entre em contato com a Instalight.',14,y);
   pdfFooter(doc,fd,1,1);
-  doc.save(`pendencias_${fd.nomeCliente||'instalight'}.pdf`);
+  doc.save(makeFilename('pendencias',fd));
 };
 
 const exportarMemorialPDFStandalone=(fd,calc,memorialIA)=>{
@@ -965,7 +973,7 @@ const exportarMemorialPDFStandalone=(fd,calc,memorialIA)=>{
     doc.setTextColor(150);doc.text('Memorial não gerado — acesse a aba Memorial para gerá-lo.',14,55);
   }
   pdfFooter(doc,fd,1,1);
-  doc.save(`memorial_${fd.nomeCliente||'instalight'}.pdf`);
+  doc.save(makeFilename('memorial',fd));
 };
 
 // ── SVG Symbols ────────────────────────────────────────────────────────────
@@ -1443,7 +1451,15 @@ const UploadModule=({apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingD
         2000
       );
       const txt=res.content[0].text;
-      const json=JSON.parse(txt.replace(/```json\n?|\n?```/g,'').trim());
+      // Fallback em 3 tentativas para lidar com variações de resposta da IA
+      let json=null;
+      // 1) JSON puro (sem markdown)
+      try{json=JSON.parse(txt.trim());}catch{}
+      // 2) JSON dentro de bloco ```json ... ``` (ou ``` ... ```)
+      if(!json){const m=txt.match(/```(?:json)?\s*([\s\S]*?)```/);if(m)try{json=JSON.parse(m[1].trim());}catch{}}
+      // 3) Primeiro objeto JSON encontrado na resposta
+      if(!json){const m=txt.match(/\{[\s\S]*\}/);if(m)try{json=JSON.parse(m[0]);}catch{}}
+      if(!json)throw new Error('IA retornou formato inválido. Verifique a chave e tente novamente.');
       onExtract(json);
     }catch(e){
       alert('Erro ao extrair dados: '+e.message);
@@ -1644,7 +1660,7 @@ const DiagramasTab=({fd,calc,svgRef})=>{
     const b=new Blob([s],{type:'image/svg+xml'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(b);
-    a.download=`prancha_${fd.nomeCliente||'instalight'}.svg`;
+    a.download=makeFilename('prancha',fd,'svg');
     a.click();
   };
 
@@ -1657,7 +1673,7 @@ const DiagramasTab=({fd,calc,svgRef})=>{
       const doc=makePDF('l','a3');
       const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
       doc.addImage(img,'JPEG',5,5,W-10,H-10);
-      doc.save(`prancha_${fd.nomeCliente||'instalight'}.pdf`);
+      doc.save(makeFilename('prancha',fd));
     }catch(e){alert('Erro ao gerar PDF: '+e.message);}
   };
 
@@ -1773,7 +1789,7 @@ Todos os resultados dos testes e ensaios deverão ser registrados em relatório 
       doc.setTextColor(150);doc.text('Gere o memorial primeiro.',14,55);
     }
     pdfFooter(doc,fd,1,1);
-    doc.save(`memorial_${fd.nomeCliente||'instalight'}.pdf`);
+    doc.save(makeFilename('memorial',fd));
   };
 
   const secoes=memorialIA?[
@@ -1916,7 +1932,7 @@ const DocumentosTab=({fd,calc,apiKey,setToast,docsGerados,setDocsGerados})=>{
     doc.text('Art. 9° — REN ANEEL n° 1.000/2021',doc.internal.pageSize.getWidth()/2,42,{align:'center'});
     addTextBlock(doc,procuracao,14,14,52,5.5);
     pdfFooter(doc,fd,1,1);
-    doc.save(`procuracao_${fd.nomeCliente||'instalight'}.pdf`);
+    doc.save(makeFilename('procuracao',fd));
   };
 
   const exportFormularioPDF=()=>{
@@ -1963,7 +1979,7 @@ const DocumentosTab=({fd,calc,apiKey,setToast,docsGerados,setDocsGerados})=>{
     doc.setTextColor(30);
 
     pdfFooter(doc,fd,1,1);
-    doc.save(`formulario_ceee_${fd.nomeCliente||'instalight'}.pdf`);
+    doc.save(makeFilename('formulario_ceee',fd));
     setDocsGerados(p=>({...p,formularioCEEE:true}));
   };
 
@@ -2129,7 +2145,7 @@ const ResumoTab=({fd,calc,docsGerados,setToast})=>{
     doc.text('Dúvidas? Entre em contato com a Instalight.',14,y);
 
     pdfFooter(doc,fd,1,1);
-    doc.save(`pendencias_${fd.nomeCliente||'instalight'}.pdf`);
+    doc.save(makeFilename('pendencias',fd));
     setToast({message:'Relatório de pendências exportado!',type:'success'});
   };
 
@@ -2255,7 +2271,7 @@ const App=()=>{
       const s=new XMLSerializer().serializeToString(svgRef.current);
       const b=new Blob([s],{type:'image/svg+xml'});
       const a=document.createElement('a');a.href=URL.createObjectURL(b);
-      a.download=`prancha_${formData.nomeCliente||'instalight'}.svg`;a.click();
+      a.download=makeFilename('prancha',formData,'svg');a.click();
       await delay(400);
     }
     // 2 — Memorial PDF
