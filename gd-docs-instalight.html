@@ -1,0 +1,2233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>GD Docs — Instalight</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.ai-field{border-color:#fb923c!important;background:#fff7ed!important}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #f97316;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;right:24px;z-index:999;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:slideIn .3s ease}
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.doc-preview{font-family:'Courier New',monospace;font-size:12px;line-height:1.7;white-space:pre-wrap;background:#fafafa;border:1px solid #e2e8f0;border-radius:6px;padding:16px;max-height:500px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback}=React;
+const {jsPDF}=window.jspdf;
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const VOC_PP=41,RHO=0.01724,IRRAD=4.8,PR=0.75,TARIFA=0.85;
+const API_URL='https://api.anthropic.com/v1/messages';
+const MODEL='claude-sonnet-4-6';
+const LS_KEY='instalight_api_key';
+
+const INITIAL_FORM={
+  tipoPessoa:'fisica',
+  nomeCliente:'',cpfCnpj:'',endereco:'',codigoUC:'',numeroFatura:'',
+  numContaContrato:'',consumoMensalKwh:'',
+  tipoLigacao:'Monofásico',
+  numeroPaineis:'',modeloPainel:'',potenciaUnitariaWp:'',
+  paineisSerie:'',stringParalelo:'',
+  modeloInversor:'',potenciaCAkW:'',tensaoEntradaCC:'',tensaoSaidaCA:'',
+  quantidadeInversores:'1',
+  secaoCaboCC:'6',comprimentoCabosCC:'',
+  secaoCaboCA:'6',comprimentoCabosCA:'',
+  secaoCaboAterr:'6',
+  dpsCCTipo:'Tipo 2',dpsCCTensao:'1000',
+  dpsCAipo:'Tipo 2',dpsCATensao:'275',
+  disjuntorCC:'',disjuntorCA:'',
+  aterramento:'Haste 5/8"',
+  tipoTelhado:'Cerâmico',coordenadas:'',
+  nomeEmpresa:'Instalight Energia Solar',
+  cnpjEmpresa:'',enderecoEmpresa:'Porto Alegre, RS',
+  nomeResponsavel:'',numeroCRT:'',
+  numART:'',numProjeto:'',
+  cidade:'Porto Alegre',dataproject:new Date().toLocaleDateString('pt-BR'),
+};
+
+// ── Motor de cálculos JS (nunca IA) ───────────────────────────────────────
+const num=(v,d=0)=>parseFloat(v)||d;
+const calcularSistema=(fd)=>{
+  const np=num(fd.numeroPaineis),wp=num(fd.potenciaUnitariaWp),
+        ns=num(fd.paineisSerie,1),npar=num(fd.stringParalelo,1),
+        pca=num(fd.potenciaCAkW),qi=num(fd.quantidadeInversores,1),
+        scc=num(fd.secaoCaboCC,6),sca=num(fd.secaoCaboCA,6),
+        lcc=num(fd.comprimentoCabosCC,10),lca=num(fd.comprimentoCabosCA,5);
+  const kWp=(np*wp)/1000;
+  const kWtCA=pca*qi;
+  const vocStr=ns*VOC_PP;
+  const vocMax=vocStr*1.25;
+  const iscStr=wp/VOC_PP;
+  const iccTot=iscStr*npar;
+  const iccN=iccTot*1.25;
+  const tca=220;
+  const faseF=fd.tipoLigacao==='Trifásico'?Math.sqrt(3):1;
+  const iNomCA=kWtCA>0?(kWtCA*1000)/(tca*faseF):0;
+  const iDimCA=iNomCA*1.25;
+  const dvccV=scc>0?(2*lcc*iccN*RHO)/scc:0;
+  const dvccP=vocStr>0?(dvccV/vocStr)*100:0;
+  const dvcaV=sca>0?(2*lca*iNomCA*RHO)/sca:0;
+  const dvcaP=tca>0?(dvcaV/tca)*100:0;
+  const geracaoAnual=Math.round(kWp*IRRAD*PR*365);
+  const economiaAnual=Math.round(geracaoAnual*TARIFA);
+  const enq=kWp<=0?'—':kWp<=75?'Microgeração Distribuída':'Minigeração Distribuída';
+  const prazo=kWp<=0?'—':kWp<=75?'15 dias (sem obra) / 30 dias (com obra)':'60 dias';
+  // Potência disponibilizada (NT.00020.EQTL-06 Seção 5.3)
+  const djCA=num(fd.disjuntorCA,50);
+  const potDispKVA=+(( tca*djCA*faseF)/1000).toFixed(2);
+  const potDispKW=+(potDispKVA*0.92).toFixed(2);
+  // Impacto ambiental CO2 (fator SIN 0.10 kgCO2/kWh)
+  const co2EvitadoAnual=Math.round(geracaoAnual*0.10);
+  const arvoresEquivalente=Math.round(co2EvitadoAnual/25);
+  const co2Em25Anos=co2EvitadoAnual*25;
+  const consumoMensalKwh=num(fd.consumoMensalKwh,0);
+  const percentualAtendimento=consumoMensalKwh>0?Math.min(100,+(geracaoAnual/(consumoMensalKwh*12)*100).toFixed(1)):null;
+  return{
+    kWp:+kWp.toFixed(2),kWtCA:+kWtCA.toFixed(2),
+    vocStr:+vocStr.toFixed(1),vocMax:+vocMax.toFixed(1),
+    iscStr:+iscStr.toFixed(2),iccTot:+iccTot.toFixed(2),iccN:+iccN.toFixed(2),
+    iNomCA:+iNomCA.toFixed(2),iDimCA:+iDimCA.toFixed(2),
+    dvccV:+dvccV.toFixed(2),dvccP:+dvccP.toFixed(2),
+    dvcaV:+dvcaV.toFixed(2),dvcaP:+dvcaP.toFixed(2),
+    iDjCCMin:+iccN.toFixed(1),iDjCAMin:+iDimCA.toFixed(1),
+    geracaoAnual,economiaAnual,enq,prazo,
+    potDispKVA,potDispKW,
+    co2EvitadoAnual,arvoresEquivalente,co2Em25Anos,percentualAtendimento,
+  };
+};
+
+// ── Template do Memorial (80% JS, 20% IA) ─────────────────────────────────
+const buildMemorialTemplate=(fd,calc)=>{
+  const nf=fd.tipoLigacao==='Trifásico'?'√3 ≈ 1,732':'1';
+  const fases={'Monofásico':'2 (fase + neutro)','Bifásico':'3 (duas fases + neutro)','Trifásico':'4 (três fases + neutro + terra)'};
+  const tensoes={'Monofásico':'220 V','Bifásico':'220 V','Trifásico':'380/220 V'};
+  const fixacoes={
+    'Cerâmico':'estrutura de alumínio anodizado com trilhos e grampos específicos para telha cerâmica, fixados com parafusos de inox nas ripas de madeira do caibramento existente',
+    'Metálico':'estrutura de alumínio anodizado com perfis e grampos para telha metálica trapezoidal, fixados com parafusos autoperfurantes de inox com vedação EPDM',
+    'Fibrocimento':'estrutura de alumínio anodizado com ganchos de inox especiais para fibrocimento, fixados com parafusos estruturais de 200 mm de comprimento mínimo nas terças',
+    'Laje':'estrutura de alumínio com perfis inclinados (ângulo ótimo de inclinação) fixados em blocos de concreto lastro sobre laje impermeabilizada, sem perfuração',
+    'Solo':'estrutura de alumínio com perfis cravados ou ancorados em fundações de concreto no terreno, orientados para norte geográfico no ângulo de inclinação ótimo',
+  };
+  const c=calc;
+  const f=fd;
+  const hoje=f.dataproject||new Date().toLocaleDateString('pt-BR');
+  const nPaineis=f.numeroPaineis||'[INSERIR]';
+  const modPainel=f.modeloPainel||'[INSERIR MODELO]';
+  const wpPainel=f.potenciaUnitariaWp||'[INSERIR]';
+  const nSerie=f.paineisSerie||'[INSERIR]';
+  const nPar=f.stringParalelo||'[INSERIR]';
+  const modInv=f.modeloInversor||'[INSERIR MODELO]';
+  const potCAkW=f.potenciaCAkW||'[INSERIR]';
+  const nInv=f.quantidadeInversores||'1';
+  const VinCC=f.tensaoEntradaCC||'[INSERIR]';
+  const VoutCA=f.tensaoSaidaCA||'220';
+  const djCC=f.disjuntorCC||c.iDjCCMin||'[INSERIR]';
+  const djCA=f.disjuntorCA||c.iDjCAMin||'[INSERIR]';
+
+  return `MEMORIAL TÉCNICO-DESCRITIVO
+SISTEMA DE ${c.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
+Elaborado conforme NT.00020.EQTL-06 (CEEE Equatorial) e ABNT NBR 16690
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LISTA DE SIGLAS E ABREVIATURAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABNT  Associação Brasileira de Normas Técnicas
+ANEEL Agência Nacional de Energia Elétrica
+BT    Baixa Tensão
+CA    Corrente Alternada
+CC    Corrente Contínua
+CEEE  Companhia Estadual de Distribuição de Energia Elétrica
+DPS   Dispositivo de Proteção contra Surtos
+FP    Fator de Potência
+FV    Fotovoltaico
+GD    Geração Distribuída
+HSP   Horas de Sol Pleno
+IDG   Corrente do Disjuntor Geral
+Isc   Corrente de Curto-Circuito
+kWh   Quilowatt-hora
+kWp   Quilowatt-pico
+MPPT  Maximum Power Point Tracker (Rastreador de Ponto de Máxima Potência)
+NBR   Norma Brasileira
+NF    Fator de Número de Fases
+PE    Condutor de Proteção (Terra)
+PR    Performance Ratio (Fator de Desempenho)
+QDC   Quadro de Distribuição de Corrente
+REN   Resolução Normativa
+RT    Responsável Técnico
+SFVCR Sistema Fotovoltaico Conectado à Rede
+SFV   Sistema Fotovoltaico
+SPDA  Sistema de Proteção contra Descargas Atmosféricas
+UC    Unidade Consumidora
+VN    Tensão Nominal
+Voc   Tensão de Circuito Aberto
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[[[IA_NARRATIVA_SEC1]]]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. REFERÊNCIAS NORMATIVAS E REGULATÓRIAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Lei Federal n° 14.300/2022 — Marco Legal da Microgeração e Minigeração Distribuída
+• REN ANEEL n° 1.000/2021 — Regras de prestação do serviço público de distribuição de energia
+• NT.00020.EQTL-06 — Norma Técnica CEEE Equatorial para Conexão de Micro/Minigeração
+• ABNT NBR 16690:2019 — Sistemas fotovoltaicos — Requisitos para documentação técnica
+• ABNT NBR 5410:2004 — Instalações elétricas de baixa tensão
+• ABNT NBR 5419:2015 — Proteção de estruturas contra descargas atmosféricas
+• ABNT NBR IEC 62116 — Procedimento de ensaio de anti-ilhamento para inversores FV
+• ABNT NBR 16149:2013 — Sistemas FV — Características da interface de conexão com a rede
+• ABNT NBR 16150:2013 — Sistemas FV — Interface de conexão — Procedimento de ensaio
+• PRODIST Módulo 3 — Acesso ao Sistema de Distribuição
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DADOS DA UNIDADE CONSUMIDORA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Titular:            ${f.nomeCliente||'[INSERIR NOME]'}
+${f.tipoPessoa==='fisica'?'CPF':'CNPJ'}:                ${f.cpfCnpj||'[INSERIR]'}
+Conta-Contrato:     ${f.numContaContrato||'[INSERIR CONTA-CONTRATO]'}
+Código da UC:       ${f.codigoUC||'[INSERIR CÓDIGO UC]'}
+Endereço:           ${f.endereco||'[INSERIR ENDEREÇO COMPLETO]'}
+Cidade / UF:        ${f.cidade||'Porto Alegre'} / RS
+Coordenadas:        ${f.coordenadas||'[INSERIR COORDENADAS UTM]'}
+Consumo médio:      ${f.consumoMensalKwh?f.consumoMensalKwh+' kWh/mês':'[INSERIR CONSUMO MÉDIO]'}
+Fatura referência:  ${f.numeroFatura||'[INSERIR Nº FATURA]'}
+Distribuidora:      CEEE Equatorial (área de concessão Rio Grande do Sul)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PADRÃO DE ENTRADA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4.1 Tipo de Ligação e Tensão de Atendimento
+• Tipo:             ${f.tipoLigacao}
+• Número de fases:  ${fases[f.tipoLigacao]||'[VERIFICAR]'}
+• Tensão nominal:   ${tensoes[f.tipoLigacao]||'220 V'} / 60 Hz
+
+4.2 Disjuntor de Entrada
+• Corrente nominal (IDG): ${djCA} A
+• Número de pólos:        ${f.tipoLigacao==='Monofásico'?'2 (bipolar)':f.tipoLigacao==='Bifásico'?'3 (tripolar)':'3 (tripolar)'}
+• Curva de atuação:       C
+• Elemento de proteção:   Termomagnético
+
+4.3 Potência Disponibilizada — Fórmula (NT.00020.EQTL-06 Seção 5.3)
+  PD [kVA] = (VN × IDG × NF) / 1000
+  PD [kVA] = (220 × ${djCA} × ${nf}) / 1000 = ${c.potDispKVA} kVA
+  PD [kW]  = PD [kVA] × FP = ${c.potDispKVA} × 0,92 = ${c.potDispKW} kW
+
+A potência de injeção do gerador (${c.kWtCA} kW CA) ${c.kWtCA<=c.potDispKW?'é inferior ou igual à':'supera a'} potência disponibilizada (${c.potDispKW} kW), ${c.kWtCA<=c.potDispKW?'atendendo':'não atendendo'} ao requisito normativo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. DIMENSIONAMENTO DO GERADOR FOTOVOLTAICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5.1 Características Técnicas dos Módulos FV
+
+| Parâmetro                          | Valor                    |
+|------------------------------------|--------------------------|
+| Fabricante / Modelo                | ${modPainel}             |
+| Potência nominal (Pn)              | ${wpPainel} Wp           |
+| Tensão de máxima potência (Vmp)    | [INSERIR] V              |
+| Corrente de máxima potência (Imp)  | [INSERIR] A              |
+| Tensão de circuito aberto (Voc)    | ${c.vocStr>0?(c.vocStr/Math.max(1,num(nSerie))).toFixed(1):'[INSERIR]'} V (unitário) |
+| Corrente de curto-circuito (Isc)   | ${c.iscStr} A (unitário) |
+| Eficiência                         | [INSERIR] %              |
+| Dimensões (C × L × E)             | [INSERIR] mm             |
+| Peso                               | [INSERIR] kg             |
+| Temperatura de operação nominal    | [INSERIR] °C             |
+| Coef. temperatura (Pmax)           | [INSERIR] %/°C           |
+| Tensão máxima do sistema           | 1000 V                   |
+| Quantidade total                   | ${nPaineis} módulos      |
+| Potência total CC instalada        | ${c.kWp} kWp             |
+
+5.2 Topologia das Strings
+
+Configuração: ${nSerie} módulos em série × ${nPar} strings em paralelo = ${nPaineis} módulos totais
+
+| Parâmetro                                  | Valor por String         |
+|--------------------------------------------|--------------------------|
+| Tensão de circuito aberto Voc (string)     | ${c.vocStr} V            |
+| Voc máximo (fator segurança NBR 16690 ×1,25)| ${c.vocMax} V           |
+| Corrente de curto-circuito Isc (string)    | ${c.iscStr} A            |
+| Icc total (${nPar} strings paralelo)       | ${c.iccTot} A            |
+| Corrente de dimensionamento (Icc × 1,25)   | ${c.iccN} A              |
+| Potência por string                        | ${nSerie&&wpPainel?(num(nSerie)*num(wpPainel)/1000).toFixed(2):'[CALCULAR]'} kWp |
+
+Nota: Voc máximo de ${c.vocMax} V inferior ao limite de 1000 V estabelecido pela NBR 16690 para instalações de baixa tensão.
+
+5.3 Queda de Tensão em Corrente Contínua
+
+Fórmula aplicada: ΔV = (2 × L × I × ρ) / S
+Onde:
+  L = ${f.comprimentoCabosCC||'[L]'} m (comprimento do circuito CC)
+  I = ${c.iccN} A (corrente de dimensionamento)
+  ρ = 0,01724 Ω·mm²/m (resistividade do cobre a 20°C)
+  S = ${f.secaoCaboCC||'6'} mm² (seção transversal do condutor)
+
+  ΔV(CC) = (2 × ${f.comprimentoCabosCC||'?'} × ${c.iccN} × 0,01724) / ${f.secaoCaboCC||'6'} = ${c.dvccV} V
+  ΔV(CC)% = ${c.dvccV} / ${c.vocStr} × 100 = ${c.dvccP}%
+
+${c.dvccP<=3?'✔ Queda de tensão CC dentro do limite admissível de 3% (NBR 16690).':'⚠ Verificar bitola do cabo CC — queda superior a 3% (NBR 16690).'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DIMENSIONAMENTO DO INVERSOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+| Parâmetro                             | Valor                    |
+|---------------------------------------|--------------------------|
+| Fabricante / Modelo                   | ${modInv}                |
+| Quantidade                            | ${nInv} unidade(s)       |
+| Potência nominal CA (Pca)             | ${potCAkW} kW            |
+| Potência CA total                     | ${c.kWtCA} kW            |
+| Máxima tensão CC de entrada (Vcc-máx) | ${VinCC} V               |
+| Tensão nominal de saída CA            | ${VoutCA} V              |
+| Número de entradas MPPT               | [INSERIR]                |
+| Faixa de tensão MPPT                  | [INSERIR] V              |
+| Tensão de partida CC                  | [INSERIR] V              |
+| Corrente nominal saída CA             | ${c.iNomCA} A            |
+| Corrente máxima saída CA              | ${c.iDimCA} A            |
+| THD de corrente                       | < 3%                     |
+| Fator de potência                     | 1,0                      |
+| Eficiência máxima                     | [INSERIR] %              |
+| Grau de proteção                      | IP65 (mínimo)            |
+| Proteção anti-ilhamento               | Integrada (NBR IEC 62116)|
+
+Relação CC/CA: ${c.kWp>0&&c.kWtCA>0?(c.kWp/c.kWtCA).toFixed(2):'[CALCULAR]'} (faixa recomendada: 1,0 a 1,3)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. ESTRUTURA DE FIXAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tipo de cobertura: ${f.tipoTelhado}
+[[[IA_NARRATIVA_SEC7]]]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. DIMENSIONAMENTO DAS PROTEÇÕES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8.1 Disjuntor de Proteção CC
+• Corrente de dimensionamento (Icc × 1,25): ${c.iccN} A
+• Disjuntor CC selecionado: ${djCC} A (${num(djCC)>=c.iccN?'✔ atende':'⚠ verificar'})
+• Número de pólos: 2 (bipolar, CC)
+• Tensão nominal mínima: ${c.vocMax} V CC
+
+8.2 Disjuntor de Proteção CA
+• Corrente nominal CA: ${c.iNomCA} A
+• Corrente de dimensionamento (In × 1,25): ${c.iDimCA} A
+• Disjuntor CA selecionado: ${djCA} A (${num(djCA)>=c.iDimCA?'✔ atende':'⚠ verificar'})
+• Número de pólos: ${f.tipoLigacao==='Monofásico'?'2 (bipolar)':f.tipoLigacao==='Bifásico'?'3 (tripolar)':'3 (tripolar)'}
+• Capacidade de interrupção: mínimo 5 kA
+
+8.3 DPS — Proteção CC (String Box)
+• Tipo: ${f.dpsCCTipo||'Tipo 2'}
+• Tensão máxima de operação contínua (Uc): ${f.dpsCCTensao||'1000'} V CC
+• Corrente de descarga nominal (8/20 μs): mínimo 20 kA
+• Nível de proteção (Up): ≤ 5 kV
+• Tempo de resposta: < 25 ns
+• Modos de proteção: L+/PE, L-/PE (modo comum) | L+/L- (diferencial)
+
+8.4 DPS — Proteção CA (QDC CA)
+• Tipo: ${f.dpsCAipo||'Tipo 2'}
+• Tensão máxima de operação contínua (Uc): ${f.dpsCATensao||'275'} V CA
+• Corrente de descarga nominal (8/20 μs): mínimo 20 kA
+• Nível de proteção (Up): ≤ 1,8 kV
+• Certificação: IEC/EN 61643-1
+
+8.5 Sistema de Aterramento
+• Configuração: ${f.aterramento||'Haste de aterramento 5/8" × 2,40 m, com conector de bronze'}
+• Condutor de aterramento: ${f.secaoCaboAterr||'6'} mm² — isolação verde/amarela
+• Resistência de aterramento: ≤ 10 Ω (conforme ABNT NBR 5419)
+• Tensão de contato admissível: ≤ 25 V (situação 2, Tabela C.2 — NBR 5410:2004)
+• Interligação: O sistema de aterramento do SFV deve ser interligado ao aterramento principal da instalação elétrica existente.
+• Barramento de equipotencialização: cobre estanhado, seção mínima de ${f.secaoCaboAterr||'6'} mm²
+
+8.6 Tabela de Requisitos de Proteção do Inversor
+
+| Requisito de Proteção                              | Indicação   |
+|----------------------------------------------------|-------------|
+| Proteção de subtensão (27)                         | Integrada   |
+| Proteção de sobretensão (59)                       | Integrada   |
+| Proteção de subfrequência (81U)                    | Integrada   |
+| Proteção de sobrefrequência (81O)                  | Integrada   |
+| Proteção contra reversão de tensão (47)            | Integrada   |
+| Proteção de sobrecorrente (50/51)                  | Integrada   |
+| Proteção anti-ilhamento (NBR IEC 62116)            | Integrada   |
+| Check de sincronismo (25)                          | Integrada   |
+| Temporizador de reconexão (62)                     | Integrada   |
+| Monitoração de isolamento CC                       | Integrada   |
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. DIMENSIONAMENTO DOS CABOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9.1 Condutores em Corrente Contínua (CC)
+• Bitola: ${f.secaoCaboCC||'6'} mm² (positivo e negativo)
+• Tipo: Cabo solar flexível dupla isolação, 1,8 kV CC, 90°C
+• Identificação: vermelho (positivo), preto (negativo)
+• Comprimento estimado: ${f.comprimentoCabosCC||'[INSERIR]'} m
+• Conectores: tipo MC4 (IP67, adequados para uso externo)
+• Condutor de aterramento (CC): ${f.secaoCaboAterr||'6'} mm², verde/amarelo
+
+9.2 Condutores em Corrente Alternada (CA)
+• Bitola: ${f.secaoCaboCA||'6'} mm²
+• Tipo: Cabo de cobre flexível, isolação XLPE/EPR 0,6/1 kV, 70°C
+• Identificação: preto/marrom/cinza (fases), azul (neutro), verde/amarelo (PE)
+• Comprimento estimado: ${f.comprimentoCabosCA||'[INSERIR]'} m
+
+9.3 Queda de Tensão CA
+  ΔV(CA) = (2 × ${f.comprimentoCabosCA||'?'} × ${c.iNomCA} × 0,01724) / ${f.secaoCaboCA||'6'} = ${c.dvcaV} V
+  ΔV(CA)% = ${c.dvcaV} / 220 × 100 = ${c.dvcaP}%
+${c.dvcaP<=4?'✔ Queda de tensão CA dentro do limite de 4% (ABNT NBR 5410).':'⚠ Verificar bitola do cabo CA — queda superior a 4% (NBR 5410).'}
+
+9.4 Infraestrutura de Dutos
+• Dutos CC: eletroduto de PEAD corrugado dupla parede, cor vermelho, fixado a cada 1,0 m
+• Dutos CA: eletroduto de PVC rígido (ou ferro galvanizado em área externa), fixado a cada 1,0 m
+• Circuitos CC e CA em dutos separados (NBR 16690 seção 5.4)
+• Identificação permanente a cada 3,0 m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. ESTIMATIVA DE GERAÇÃO E IMPACTO AMBIENTAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10.1 Geração Estimada
+
+Fórmula: E(ano) = Pp × HSP × PR × 365
+  Pp  = ${c.kWp} kWp (potência de pico instalada)
+  HSP = ${IRRAD} kWh/m²/dia (Horas de Sol Pleno — Porto Alegre/RS, CRESESB)
+  PR  = ${PR} (Performance Ratio — fator de perdas globais do sistema)
+
+  E(ano) = ${c.kWp} × ${IRRAD} × ${PR} × 365 = ${c.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
+  E(mês) ≈ ${Math.round(c.geracaoAnual/12).toLocaleString('pt-BR')} kWh/mês
+
+${c.percentualAtendimento?`Atendimento estimado ao consumo da UC: ${c.percentualAtendimento}% (consumo médio declarado: ${f.consumoMensalKwh} kWh/mês)`:''}
+Economia financeira estimada: R$ ${c.economiaAnual.toLocaleString('pt-BR')}/ano (tarifa média R$ ${TARIFA}/kWh)
+
+10.2 Impacto Ambiental
+[[[IA_NARRATIVA_SEC10]]]
+
+Dados calculados para composição do texto ambiental:
+  CO₂ evitado/ano: ${c.co2EvitadoAnual.toLocaleString('pt-BR')} kg CO₂ (fator SIN: 0,10 kgCO₂/kWh)
+  CO₂ evitado em 25 anos: ${c.co2Em25Anos.toLocaleString('pt-BR')} kg CO₂
+  Equivalente em árvores: ${c.arvoresEquivalente.toLocaleString('pt-BR')} árvores/ano
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. PLACAS E IDENTIFICAÇÕES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Conforme NT.00020.EQTL-06 (Seção 10), devem ser instaladas placas de advertência com as seguintes especificações:
+
+• Material: Policarbonato com aditivos anti-raios UV
+• Espessura mínima: 2 mm
+• Cor de fundo: Amarela (masterização 2%)
+• Tipo de letra: Arial Black
+• Dimensões padrão: 25 cm (largura) × 18 cm (altura)
+
+Texto obrigatório (todos os pontos de acesso ao sistema):
+  ┌────────────────────────────────────────┐
+  │ ⚠ CUIDADO — RISCO DE CHOQUE ELÉTRICO  │
+  │         GERAÇÃO PRÓPRIA               │
+  │   Este ponto possui energia fotovolt. │
+  │   Desligue o inversor antes da manutenção│
+  └────────────────────────────────────────┘
+
+Posicionamento obrigatório:
+  a) Junto ao medidor de energia / caixa de medição
+  b) No Quadro de Distribuição CA-FV
+  c) No String Box (proteção CC)
+  d) Nas calhas e eletrodutos do sistema FV
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. COMISSIONAMENTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[[[IA_NARRATIVA_SEC12]]]
+
+12.1 Inspeção Prévia — Sistema CC
+□ Verificar conformidade dos equipamentos instalados com o projeto aprovado
+□ Verificar ligações entre módulos, String Box e inversor
+□ Confirmar Voc e Isc de cada string individualmente
+□ Verificar classes de isolamento e dupla isolação dos cabos CC
+□ Verificar instalação dos conectores MC4 (travamento e estanqueidade)
+□ Verificar operacionalidade das chaves seccionadoras CC
+□ Verificar continuidade do condutor de proteção (PE)
+□ Verificar etiquetagem permanente e durável em todos os componentes CC
+
+12.2 Inspeção Prévia — Sistema CA
+□ Verificar aparelho de comando para isolamento dos inversores
+□ Verificar compatibilidade dos inversores com a rede pública (tensão, frequência)
+□ Verificar etiquetagem de todos os equipamentos CA
+□ Verificar esquema elétrico afixado junto ao quadro de comando
+□ Verificar instruções de desligamento de emergência afixadas
+
+12.3 Testes e Ensaios
+
+12.3.1 Continuidade do Condutor de Proteção
+Procedimento: Medir resistência entre todas as partes metálicas não-ativas e o barramento de terra.
+Critério de aceitação: Continuidade confirmada (≤ 0,5 Ω).
+
+12.3.2 Verificação de Polaridade
+Procedimento: Verificar polaridade de cada string antes da conexão ao inversor.
+Critério de aceitação: Polaridade correta confirmada em 100% das strings.
+
+12.3.3 Tensão de Circuito Aberto (Voc) das Strings
+Procedimento: Medir Voc de cada string individualmente com multímetro adequado para CC.
+Valor esperado de projeto: ${c.vocStr} V (em STC: 1000 W/m², 25°C).
+Critério de aceitação: Variação ≤ ±5% entre strings e em relação ao valor de projeto.
+
+12.3.4 Corrente de Curto-Circuito (Isc) das Strings
+Procedimento: Medir Isc utilizando equipamento apropriado (amperímetro de alicate).
+Valor esperado de projeto: ${c.iscStr} A por string.
+Critério de aceitação: Variação ≤ ±5% entre strings.
+
+12.3.5 Corrente Operacional das Strings
+Procedimento: Medir corrente de cada string em operação normal (irradiação > 700 W/m²).
+Critério de aceitação: Variação ≤ ±5% entre strings.
+
+12.3.6 Ensaios Funcionais
+□ Verificar operacionalidade de todos os aparelhos de comando e sinalização
+□ Verificar indicadores e display dos inversores (sem alarmes ativos)
+□ Testar função anti-ilhamento (conforme manual do inversor)
+□ Confirmar injeção de energia na rede (medidor avançando no sentido correto)
+
+12.3.7 Resistência de Isolamento das Strings
+IMPORTANTE: Executar com no mínimo duas pessoas. Bloquear acesso à área.
+Procedimento: Aplicar tensão de ensaio entre os condutores CC e a terra.
+Curto-circuitar os terminais + e − para medição com megôhmetro.
+Critério de aceitação: Resistência de isolamento ≥ 1 MΩ.
+Após o ensaio: descarregar os cabos antes de reconectar.
+
+12.3.8 Inspeção Termográfica (recomendada)
+Equipamento: câmera de imagem térmica (resolução mínima 160×120 px).
+Pontos de inspeção: frente dos módulos FV, diodos de bypass, String Box, conectores MC4.
+Critério de aceitação: ausência de hotspots (pontos quentes > 10°C acima da média).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. EXPLORAÇÃO E MANUTENÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13.1 Periodicidade de Verificações
+• Primeiros 5 anos de operação: ensaios e inspeções ANUAIS
+• A partir do 6° ano: ensaios e inspeções A CADA 2 ANOS
+• Inspeção visual dos módulos: SEMESTRAL (limpeza e verificação de danos)
+
+Ensaios periódicos recomendados (mesmos do comissionamento):
+• Continuidade do condutor de proteção
+• Tensão de circuito aberto e corrente das strings
+• Ensaios funcionais do inversor
+• Resistência de isolamento dos condutores CC
+• Inspeção termográfica
+
+13.2 Operações em Caso de Falha
+I.   Falha em módulo individual: acionar chave seccionadora da string correspondente
+II.  Falha no inversor: desligar disjuntor CA + todas as chaves seccionadoras CC
+III. Falha geral: desligar disjuntor geral CA + todas as seccionadoras + informar distribuidora
+
+13.3 Procedimento de Desligamento de Emergência
+1. Desligar o disjuntor geral do QGBT (interrompe CA)
+2. Desligar o disjuntor CA-FV no Quadro CA
+3. Desligar todas as chaves seccionadoras na String Box
+4. Aguardar descarga dos capacitores do inversor (mínimo 5 minutos)
+5. Afixar etiqueta de bloqueio: "SISTEMA EM MANUTENÇÃO — NÃO ENERGIZAR"
+
+13.4 Manutenção dos Módulos FV
+• Limpeza com água e esponja macia (evitar abrasivos e solventes)
+• Não pisar sobre os módulos
+• Verificar integridade do vidro frontal e junções de borracha
+• Verificar fixação dos grampos e trilhos (torque conforme fabricante)
+
+13.5 Manutenção do Inversor
+• Seguir rigorosamente o manual do fabricante
+• Limpar filtros de ventilação conforme periodicidade indicada
+• Verificar DPS (indicador luminoso): substituir se ativado
+• Aguardar descarga dos capacitores (≥ 5 min) antes de qualquer intervenção interna
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. NOTAS DE SEGURANÇA — NR-10
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Todos os serviços elétricos devem ser executados por profissionais habilitados e autorizados conforme NR-10 (Portaria MTE 598/2004).
+• Os módulos fotovoltaicos geram tensão CC assim que expostos à luz, mesmo em situações de emergência — não há forma de interromper a geração CC sem bloquear fisicamente a luz solar.
+• A tensão CC do barramento pode atingir ${c.vocMax} V. Utilizar EPI adequado (luvas isolantes, capacetes e óculos de proteção) durante manutenção.
+• Sinalizar e isolar a área de trabalho antes de qualquer intervenção.
+• Em caso de incêndio: NUNCA usar água no sistema — utilizar extintor de CO₂ ou pó químico. Notificar o Corpo de Bombeiros informando a presença de sistema fotovoltaico.
+• Manter o Livro de Inspeção e os registros de ensaios disponíveis na instalação.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. NORMAS E ESPECIFICAÇÕES TÉCNICAS ADOTADAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Lei Federal n° 14.300/2022 — Marco Legal da Geração Distribuída
+• REN ANEEL n° 1.000/2021 — Condições gerais de fornecimento e distribuição
+• NT.00020.EQTL-06 — Norma Técnica CEEE Equatorial (revisão dezembro/2025)
+• ABNT NBR 16690:2019 — Requisitos para documentação e comissionamento
+• ABNT NBR 5410:2004 — Instalações elétricas de baixa tensão
+• ABNT NBR 5419:2015 — Proteção contra descargas atmosféricas
+• ABNT NBR 10899:2013 — Energia solar fotovoltaica — Terminologia
+• ABNT NBR 11704:2008 — Sistemas fotovoltaicos — Classificação
+• ABNT NBR 16149:2013 — Interface de conexão com a rede elétrica
+• ABNT NBR 16150:2013 — Interface de conexão — Procedimento de ensaio
+• ABNT NBR IEC 62116 — Procedimento de ensaio de anti-ilhamento
+• IEC 61727 — PV Systems — Characteristics of the Utility Interface
+• PRODIST Módulo 3 — Acesso ao Sistema de Distribuição
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSÁVEL TÉCNICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Nome:       ${f.nomeResponsavel||'_______________________________'}
+CRT/CREA:   ${f.numeroCRT||'_______________________________'}
+Empresa:    ${f.nomeEmpresa||'Instalight Energia Solar'}
+Data:       ${hoje}
+
+Assinatura: _______________________________
+
+${f.cidade||'Porto Alegre'}, ${hoje}.`;
+};
+
+// ── API helpers ────────────────────────────────────────────────────────────
+const callAPI=async(apiKey,system,messages,maxTokens=4000)=>{
+  const r=await fetch(API_URL,{
+    method:'POST',
+    headers:{
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'content-type':'application/json',
+      'anthropic-dangerous-direct-browser-access':'true',
+    },
+    body:JSON.stringify({model:MODEL,max_tokens:maxTokens,system,messages}),
+  });
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`Erro ${r.status}`);}
+  return r.json();
+};
+
+const fileToBase64=(file)=>new Promise((res,rej)=>{
+  const reader=new FileReader();
+  reader.onload=e=>res(e.target.result.split(',')[1]);
+  reader.onerror=rej;
+  reader.readAsDataURL(file);
+});
+
+// ── PDF helpers ────────────────────────────────────────────────────────────
+const makePDF=(orient='p',fmt='a4')=>new jsPDF({orientation:orient,unit:'mm',format:fmt});
+
+const pdfHeader=(doc,fd)=>{
+  const W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(17,24,39);
+  doc.rect(0,0,W,22,'F');
+  doc.setFillColor(249,115,22);
+  doc.rect(0,20,W,2,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('GD Docs — Instalight',14,13);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  const sub=fd.nomeCliente?`Cliente: ${fd.nomeCliente} | UC: ${fd.codigoUC||'—'}`:'Sistema de Geração Distribuída';
+  doc.text(sub,14,18);
+  doc.setTextColor(30,30,30);
+};
+
+const pdfFooter=(doc,fd,page,total)=>{
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  doc.setFontSize(7);doc.setTextColor(100);
+  doc.text('Elaborado conforme ABNT NBR 16690, REN ANEEL 1.000/2021 e Lei Federal 14.300/2022',14,H-6);
+  doc.text(`${fd.cidade||'Porto Alegre'} | ${fd.dataproject||''} | RT: ${fd.nomeResponsavel||'—'} | Página ${page}/${total}`,W-14,H-6,{align:'right'});
+};
+
+const addTextBlock=(doc,text,marginL,marginR,startY,lineH=5.5)=>{
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  const maxW=W-marginL-marginR;
+  let y=startY;
+  const lines=text.split('\n');
+  lines.forEach(raw=>{
+    const bold=raw.startsWith('**')&&raw.endsWith('**');
+    const clean=bold?raw.slice(2,-2):raw;
+    if(bold){doc.setFont('helvetica','bold');}else{doc.setFont('helvetica','normal');}
+    const wrapped=doc.splitTextToSize(clean,maxW);
+    wrapped.forEach(line=>{
+      if(y>H-20){doc.addPage();y=30;}
+      doc.text(line,marginL,y);
+      y+=lineH;
+    });
+    if(bold)doc.setFont('helvetica','normal');
+  });
+  return y;
+};
+
+// ── Export Utilities (standalone — usados por exportarTudo no App) ─────────
+const gerarTextoProcuracao=(fd,calc)=>{
+  const hoje=fd.dataproject||new Date().toLocaleDateString('pt-BR');
+  const tipoPessoa=fd.tipoPessoa==='fisica'?
+    `${fd.nomeCliente||'___'}, CPF nº ${fd.cpfCnpj||'___'}, residente e domiciliado(a) em ${fd.endereco||'___'}`:
+    `${fd.nomeCliente||'___'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cpfCnpj||'___'}, com sede em ${fd.endereco||'___'}`;
+  return `PROCURAÇÃO ESPECÍFICA
+
+${fd.cidade||'Porto Alegre'}, ${hoje}.
+
+OUTORGANTE: ${tipoPessoa}, titular da Unidade Consumidora (UC) de código ${fd.codigoUC||'___'}, área de concessão da CEEE Equatorial.
+
+OUTORGADO: ${fd.nomeEmpresa||'Instalight Energia Solar'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cnpjEmpresa||'___'}, com endereço em ${fd.enderecoEmpresa||'Porto Alegre, RS'}.
+
+Por meio deste instrumento particular, o OUTORGANTE nomeia e constitui o OUTORGADO como seu bastante procurador, conferindo-lhe poderes específicos para:
+
+I. Protocolar, instruir, assinar e acompanhar junto à CEEE Equatorial o processo de solicitação de acesso à rede de distribuição para implantação de sistema de ${calc.enq} fotovoltaica, nos termos do Art. 9° da Resolução Normativa ANEEL n° 1.000/2021 e da Lei Federal n° 14.300/2022;
+
+II. Assinar formulários, declarações e demais documentos necessários à aprovação do sistema fotovoltaico de ${calc.kWp}kWp (${num(fd.numeroPaineis)||'—'} módulos de ${fd.potenciaUnitariaWp||'—'}Wp, inversor ${fd.modeloInversor||'—'}) na referida Unidade Consumidora;
+
+III. Retirar protocolos, acompanhar o andamento do processo e praticar todos os atos necessários ao pleno cumprimento do objeto desta procuração.
+
+Esta procuração é outorgada com poderes para um único ato e somente para os fins acima especificados, vedada a substabelecimento.
+
+_______________________________
+${fd.nomeCliente||'OUTORGANTE'}
+${fd.tipoPessoa==='fisica'?'CPF':'CNPJ'}: ${fd.cpfCnpj||'___'}
+
+Reconhecimento de firma: _______________________________ (Cartório)
+
+NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
+};
+
+const exportarProcuracaoPDFStandalone=(fd,calc)=>{
+  const doc=makePDF('p','a4');
+  pdfHeader(doc,fd);
+  doc.setFontSize(14);doc.setFont('helvetica','bold');
+  doc.text('PROCURAÇÃO ESPECÍFICA',doc.internal.pageSize.getWidth()/2,35,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Art. 9° — REN ANEEL n° 1.000/2021',doc.internal.pageSize.getWidth()/2,42,{align:'center'});
+  addTextBlock(doc,gerarTextoProcuracao(fd,calc),14,14,52,5.5);
+  pdfFooter(doc,fd,1,1);
+  doc.save(`procuracao_${fd.nomeCliente||'instalight'}.pdf`);
+};
+
+const exportarFormularioPDFStandalone=(fd,calc)=>{
+  const doc=makePDF('p','a4');
+  const W=doc.internal.pageSize.getWidth();
+  pdfHeader(doc,fd);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('FORMULÁRIO DE SOLICITAÇÃO DE ACESSO',W/2,35,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text('Micro/Minigeração Distribuída — CEEE Equatorial',W/2,42,{align:'center'});
+  let y=52;
+  const linha=(label,valor)=>{
+    doc.setFont('helvetica','bold');doc.setFontSize(9);
+    doc.text(label+':',14,y);
+    doc.setFont('helvetica','normal');
+    doc.text(valor||'—',80,y);
+    doc.setDrawColor(220);doc.line(14,y+2,W-14,y+2);
+    y+=10;
+  };
+  doc.setFont('helvetica','bold');doc.setFontSize(10);
+  doc.text('DADOS DO TITULAR',14,y);y+=8;
+  linha('Nome/Razão Social',fd.nomeCliente);
+  linha('CPF/CNPJ',fd.cpfCnpj);
+  linha('Endereço da UC',fd.endereco);
+  linha('Código UC',fd.codigoUC);
+  linha('Nº Fatura',fd.numeroFatura);
+  y+=4;doc.setFont('helvetica','bold');doc.setFontSize(10);
+  doc.text('DADOS DO SISTEMA',14,y);y+=8;
+  linha('Tipo de Geração',calc.enq);
+  linha('Potência CC instalada',`${calc.kWp} kWp`);
+  linha('Potência CA nominal',`${calc.kWtCA} kW`);
+  linha('Tipo de Ligação',fd.tipoLigacao);
+  linha('Módulos FV',`${fd.numeroPaineis||'—'}× ${fd.modeloPainel||'—'} ${fd.potenciaUnitariaWp||'—'}Wp`);
+  linha('Inversor',`${fd.modeloInversor||'—'}`);
+  linha('Responsável Técnico',fd.nomeResponsavel);
+  linha('CRT/CREA',fd.numeroCRT);
+  y+=6;doc.setFontSize(7);doc.setTextColor(120);
+  doc.text('⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',14,y);
+  doc.setTextColor(30);
+  pdfFooter(doc,fd,1,1);
+  doc.save(`formulario_ceee_${fd.nomeCliente||'instalight'}.pdf`);
+};
+
+const exportarPendenciasPDFStandalone=(fd,calc,docsGerados)=>{
+  const groupA=[
+    {id:'A1',doc:'Procuração Específica',gerado:docsGerados.procuracao,como:'Gere na aba "Documentos" e peça ao cliente assinar com firma reconhecida'},
+    {id:'A2',doc:'Formulário de Acesso CEEE',gerado:docsGerados.formularioCEEE,como:'Gere na aba "Documentos" e leve ao protocolo CEEE'},
+    {id:'A3',doc:'Documentos pessoais (RG+CPF / CNPJ+Contrato Social)',gerado:false,como:fd.tipoPessoa==='fisica'?'Solicitar cópia do RG e CPF do titular':'Solicitar CNPJ, Contrato Social e documento do representante'},
+    {id:'A4',doc:'Fatura de energia recente',gerado:false,como:'Solicitar fatura dos últimos 3 meses'},
+  ];
+  const groupB=[
+    {id:'B1',doc:'Diagrama Unifilar',gerado:true,como:'Disponível na aba "Diagramas" — exportar SVG ou PDF'},
+    {id:'B2',doc:'Diagrama Pluri (Bi/Trifilar)',gerado:true,como:'Incluído na mesma prancha da aba "Diagramas"'},
+    {id:'B3',doc:'Planta de Situação / Locação',gerado:false,como:'Providenciar foto aérea ou print do Google Maps com escala'},
+    {id:'B4',doc:'Memorial Técnico-Descritivo',gerado:docsGerados.memorial,como:'Gere na aba "Memorial" e valide com o RT'},
+    {id:'B5',doc:'TRT/ART (Responsabilidade Técnica)',gerado:false,como:'RT deve assinar a ART no sistema do CREA/CFT'},
+    {id:'B6',doc:'Data Sheets dos equipamentos',gerado:false,como:'Baixar do site do fabricante e incluir no dossiê'},
+  ];
+  const doc=makePDF('p','a4');
+  const W=doc.internal.pageSize.getWidth();
+  const H=doc.internal.pageSize.getHeight();
+  pdfHeader(doc,fd);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('RELATÓRIO DE PENDÊNCIAS — PROTOCOLO CEEE',W/2,35,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text(`Cliente: ${fd.nomeCliente||'—'} | UC: ${fd.codigoUC||'—'} | Sistema: ${calc.kWp}kWp`,W/2,43,{align:'center'});
+  let y=54;
+  const sect=(title)=>{
+    y+=4;doc.setFont('helvetica','bold');doc.setFontSize(10);
+    doc.setFillColor(249,115,22);doc.rect(14,y-5,W-28,8,'F');
+    doc.setTextColor(255);doc.text(title,16,y);
+    doc.setTextColor(30);doc.setFont('helvetica','normal');doc.setFontSize(9);
+    y+=8;
+  };
+  const item=(id,dname,done,como)=>{
+    const status=done?'GERADO':'PENDENTE';
+    doc.setFont('helvetica','bold');
+    doc.text(`${id} — ${dname}`,14,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setTextColor(done?34:180,done?139:100,done?34:0);
+    doc.text(status,14,y);doc.setTextColor(30);
+    if(!done){doc.setTextColor(80);doc.text(`  Como obter: ${como}`,14,y+5);y+=5;}
+    y+=9;if(y>H-20){doc.addPage();pdfHeader(doc,fd);y=35;}
+  };
+  sect('GRUPO A — DOCUMENTOS DO CLIENTE');
+  groupA.forEach(g=>item(g.id,g.doc,g.gerado,g.como));
+  sect('GRUPO B — DOCUMENTOS TÉCNICOS');
+  groupB.forEach(g=>item(g.id,g.doc,g.gerado,g.como));
+  y+=4;doc.setFontSize(8);doc.setTextColor(100);
+  doc.text('Dúvidas? Entre em contato com a Instalight.',14,y);
+  pdfFooter(doc,fd,1,1);
+  doc.save(`pendencias_${fd.nomeCliente||'instalight'}.pdf`);
+};
+
+const exportarMemorialPDFStandalone=(fd,calc,memorialIA)=>{
+  const doc=makePDF('p','a4');
+  const W=doc.internal.pageSize.getWidth();
+  pdfHeader(doc,fd);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text('MEMORIAL TÉCNICO-DESCRITIVO',W/2,35,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100);
+  doc.text(`${calc.enq} | ${calc.kWp} kWp | ${fd.tipoLigacao} | Conforme NT.00020.EQTL-06`,W/2,42,{align:'center'});
+  doc.setTextColor(30);
+  if(memorialIA){
+    addTextBlock(doc,memorialIA,12,12,50,5);
+  }else{
+    doc.setTextColor(150);doc.text('Memorial não gerado — acesse a aba Memorial para gerá-lo.',14,55);
+  }
+  pdfFooter(doc,fd,1,1);
+  doc.save(`memorial_${fd.nomeCliente||'instalight'}.pdf`);
+};
+
+// ── SVG Symbols ────────────────────────────────────────────────────────────
+const GndSym=({x=0,y=0,c='#16a34a'})=>(
+  <g transform={`translate(${x},${y})`}>
+    <line x1="0" y1="0" x2="0" y2="10" stroke={c} strokeWidth="1.8"/>
+    <line x1="-13" y1="10" x2="13" y2="10" stroke={c} strokeWidth="2.2"/>
+    <line x1="-8" y1="15" x2="8" y2="15" stroke={c} strokeWidth="1.8"/>
+    <line x1="-3" y1="20" x2="3" y2="20" stroke={c} strokeWidth="1.4"/>
+  </g>
+);
+
+const CBSym=({x=0,y=0,c='#1a1a2e'})=>(
+  <g transform={`translate(${x},${y})`}>
+    <line x1="0" y1="-16" x2="0" y2="-6" stroke={c} strokeWidth="2"/>
+    <circle cx="0" cy="-3" r="4" fill="white" stroke={c} strokeWidth="1.5"/>
+    <line x1="-3.5" y1="-6" x2="3.5" y2="-0.5" stroke={c} strokeWidth="1.5"/>
+    <line x1="0" y1="2" x2="0" y2="16" stroke={c} strokeWidth="2"/>
+  </g>
+);
+
+const DPSSym=({x=0,y=0,c='#1a1a2e'})=>(
+  <g transform={`translate(${x},${y})`}>
+    <line x1="0" y1="-18" x2="0" y2="-8" stroke={c} strokeWidth="2"/>
+    <rect x="-7" y="-8" width="14" height="12" rx="1" fill="white" stroke="#dc2626" strokeWidth="1.2"/>
+    <text x="0" y="2" fontSize="10" fill="#dc2626" textAnchor="middle" fontFamily="sans-serif" fontWeight="700">↯</text>
+    <line x1="0" y1="4" x2="0" y2="14" stroke={c} strokeWidth="2"/>
+    <line x1="-10" y1="14" x2="10" y2="14" stroke={c} strokeWidth="2"/>
+    <line x1="-6" y1="18" x2="6" y2="18" stroke={c} strokeWidth="1.5"/>
+    <line x1="-2" y1="22" x2="2" y2="22" stroke={c} strokeWidth="1"/>
+  </g>
+);
+
+const PanelCell=({x=0,y=0,w=36,h=24})=>(
+  <g>
+    <rect x={x} y={y} width={w} height={h} rx="2" fill="#dbeafe" stroke="#1e40af" strokeWidth="1.2"/>
+    <line x1={x+w*0.33} y1={y} x2={x+w*0.33} y2={y+h} stroke="#1e40af" strokeWidth="0.6"/>
+    <line x1={x+w*0.66} y1={y} x2={x+w*0.66} y2={y+h} stroke="#1e40af" strokeWidth="0.6"/>
+    <line x1={x} y1={y+h*0.5} x2={x+w} y2={y+h*0.5} stroke="#1e40af" strokeWidth="0.6"/>
+  </g>
+);
+
+// ── Diagrama Unifilar Vertical (top-down — padrão CEEE) ───────────────────
+const DiagramaUnifilarVertical=({fd,calc})=>{
+  const nStr=Math.min(Math.max(num(fd.stringParalelo,1),1),4);
+  const np=num(fd.paineisSerie,3);
+  const showPanels=Math.min(np,2);
+  const red='#dc2626',blk='#1a1a2e',grn='#16a34a',org='#f97316',gry='#64748b';
+  const CX=268;
+  const Y_METER=136,Y_PAD=228,Y_QDC=320,Y_INV=428,Y_SB=538,Y_FBAR=602,Y_STR=628,Y_PAN=652;
+  const strXs=nStr===1?[CX]:nStr===2?[CX-90,CX+90]:nStr===3?[CX-135,CX,CX+135]:[CX-160,CX-53,CX+53,CX+160];
+  return(
+    <g>
+      {/* ── Título ── */}
+      <text x={CX} y={18} fontSize="11" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">DIAGRAMA UNIFILAR</text>
+      <line x1={CX-80} y1={22} x2={CX+80} y2={22} stroke={org} strokeWidth="2"/>
+
+      {/* ── Backbone vertical ── */}
+      <line x1={CX} y1={30} x2={CX} y2={Y_SB-42} stroke={blk} strokeWidth="2"/>
+
+      {/* ══ REDE CEEE (topo) ══ */}
+      <rect x={CX-4} y={30} width={8} height={52} rx="2" fill={gry}/>
+      <line x1={CX-4} y1={38} x2={CX-55} y2={32} stroke={blk} strokeWidth="1.5"/>
+      <line x1={CX-4} y1={50} x2={CX-55} y2={46} stroke={blk} strokeWidth="1.5"/>
+      <line x1={CX-4} y1={62} x2={CX-55} y2={60} stroke={blk} strokeWidth="1.5"/>
+      <text x={CX+18} y={44} fontSize="10" fill={blk} fontWeight="700" fontFamily="sans-serif">REDE</text>
+      <text x={CX+18} y={56} fontSize="9" fill={gry} fontFamily="sans-serif">CEEE Equatorial</text>
+      <text x={CX+18} y={68} fontSize="8" fill={gry} fontFamily="sans-serif">{fd.tipoLigacao||'Monofásico'}</text>
+
+      {/* ══ MEDIDOR BIDIRECIONAL ══ */}
+      <circle cx={CX} cy={Y_METER} r={38} fill="white" stroke={grn} strokeWidth="2"/>
+      <text x={CX} y={Y_METER-14} fontSize="10" fill={grn} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">M</text>
+      <text x={CX} y={Y_METER+3} fontSize="16" fill={grn} textAnchor="middle">⇄</text>
+      <text x={CX} y={Y_METER+17} fontSize="8" fill={grn} textAnchor="middle" fontFamily="sans-serif">kWh</text>
+      <text x={CX-50} y={Y_METER} fontSize="8" fill={gry} textAnchor="end" fontFamily="sans-serif">&#8592; {calc.kWp}kWp</text>
+      <text x={CX-50} y={Y_METER+11} fontSize="7" fill={gry} textAnchor="end" fontFamily="sans-serif">injetado</text>
+
+      {/* ══ PADRÃO DE ENTRADA ══ */}
+      <rect x={CX-100} y={Y_PAD-30} width={200} height={60} rx="6" fill="white" stroke={blk} strokeWidth="1.8"/>
+      <text x={CX} y={Y_PAD-14} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">PADRÃO DE ENTRADA</text>
+      <text x={CX} y={Y_PAD+2} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">DJ {fd.disjuntorCA||'—'}A — {fd.tipoLigacao||'Mono'}</text>
+      <text x={CX} y={Y_PAD+15} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">#{fd.secaoCaboCA||'6'}mm² PVC 70° 750V</text>
+      <line x1={CX+100} y1={Y_PAD} x2={CX+150} y2={Y_PAD} stroke={blk} strokeWidth="1.5"/>
+      <polygon points={`${CX+150},${Y_PAD-4} ${CX+158},${Y_PAD} ${CX+150},${Y_PAD+4}`} fill={blk}/>
+      <text x={CX+162} y={Y_PAD+4} fontSize="8" fill={blk} fontFamily="sans-serif">CARGAS</text>
+
+      {/* ══ QDC CA ══ */}
+      <rect x={CX-112} y={Y_QDC-38} width={224} height={76} rx="6" fill="white" stroke={blk} strokeWidth="1.8"/>
+      <text x={CX} y={Y_QDC-22} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">QUADRO DISTRIBUIÇÃO CA</text>
+      <CBSym x={CX-36} y={Y_QDC} c={blk}/>
+      <text x={CX-36} y={Y_QDC+22} fontSize="7" fill={blk} textAnchor="middle" fontFamily="sans-serif">DJ {fd.disjuntorCA||'—'}A</text>
+      <DPSSym x={CX+36} y={Y_QDC} c={red}/>
+      <text x={CX+36} y={Y_QDC+22} fontSize="7" fill={red} textAnchor="middle" fontFamily="sans-serif">DPS {fd.dpsCATensao||'275'}V</text>
+      <GndSym x={CX} y={Y_QDC+30} c={grn}/>
+
+      {/* ══ INVERSOR ══ */}
+      <rect x={CX-120} y={Y_INV-48} width={240} height={96} rx="8" fill="white" stroke={org} strokeWidth="2.5"/>
+      <text x={CX} y={Y_INV-32} fontSize="10" fill={org} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">INVERSOR STRING</text>
+      <text x={CX} y={Y_INV-18} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">{fd.modeloInversor||'Modelo do Inversor'}</text>
+      <text x={CX} y={Y_INV-6} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">{(num(fd.potenciaCAkW)*num(fd.quantidadeInversores,1))||'—'} kW CA</text>
+      <text x={CX} y={Y_INV+12} fontSize="20" fill={org} textAnchor="middle">&#9889;</text>
+      <text x={CX-30} y={Y_INV+30} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">DC</text>
+      <text x={CX+30} y={Y_INV+30} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">AC</text>
+      <line x1={CX-14} y1={Y_INV+24} x2={CX+14} y2={Y_INV+24} stroke={gry} strokeWidth="1"/>
+      <text x={CX} y={Y_INV+42} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">59&#183;27&#183;25&#183;81 | ABNT NBR 16690</text>
+      <GndSym x={CX+110} y={Y_INV+20} c={grn}/>
+
+      {/* ══ STRING BOX CC ══ */}
+      <rect x={CX-130} y={Y_SB-42} width={260} height={84} rx="6" fill="white" stroke={blk} strokeWidth="1.8"/>
+      <text x={CX} y={Y_SB-26} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">STRING BOX CC</text>
+      <text x={CX} y={Y_SB-12} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">{nStr}&#215; Fus. {fd.disjuntorCC||'—'}A | DPS {fd.dpsCCTensao||'1000'}V CC</text>
+      <CBSym x={CX-40} y={Y_SB+10} c={blk}/>
+      <DPSSym x={CX+20} y={Y_SB+10} c={red}/>
+      <text x={CX-40} y={Y_SB+30} fontSize="7" fill={blk} textAnchor="middle" fontFamily="sans-serif">{fd.disjuntorCC||'—'}A</text>
+      <text x={CX+20} y={Y_SB+30} fontSize="7" fill={red} textAnchor="middle" fontFamily="sans-serif">{fd.dpsCCTensao||'1000'}V</text>
+      <text x={CX+95} y={Y_SB-18} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">#{fd.secaoCaboCC||'6'}mm²</text>
+
+      {/* ══ FAN-OUT BAR (String Box para Strings) ══ */}
+      {nStr>1&&<line x1={strXs[0]} y1={Y_FBAR} x2={strXs[nStr-1]} y2={Y_FBAR} stroke={blk} strokeWidth="2"/>}
+      {strXs.map((sx,i)=>(
+        <line key={`vl${i}`} x1={sx} y1={Y_SB+42} x2={sx} y2={Y_FBAR+4} stroke={blk} strokeWidth="1.5"/>
+      ))}
+
+      {/* ══ STRINGS + PAINÉIS ══ */}
+      {strXs.map((sx,i)=>(
+        <g key={`str${i}`}>
+          <line x1={sx} y1={Y_FBAR} x2={sx} y2={Y_STR-2} stroke={blk} strokeWidth="1.5"/>
+          <text x={sx} y={Y_STR+10} fontSize="7" fill={blk} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">Str {i+1}</text>
+          <text x={sx} y={Y_STR+21} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">MPPT{i+1}</text>
+          <line x1={sx-6} y1={Y_STR+24} x2={sx-6} y2={Y_PAN} stroke={red} strokeWidth="1.5"/>
+          <line x1={sx+6} y1={Y_STR+24} x2={sx+6} y2={Y_PAN} stroke={blk} strokeWidth="1.5"/>
+          <text x={sx-13} y={Y_PAN-3} fontSize="8" fill={red} textAnchor="middle">+</text>
+          <text x={sx+13} y={Y_PAN-3} fontSize="8" fill={blk} textAnchor="middle">&#8722;</text>
+          {Array.from({length:showPanels}).map((_,pi)=>(
+            <PanelCell key={pi} x={sx-18} y={Y_PAN+pi*30} w={36} h={24}/>
+          ))}
+          {showPanels<np&&(
+            <text key="dots" x={sx} y={Y_PAN+showPanels*30+12} fontSize="11" fill={gry} textAnchor="middle">&#8943;</text>
+          )}
+          <text x={sx} y={Y_PAN+showPanels*30+(showPanels<np?26:16)} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">{np}&#215;{fd.potenciaUnitariaWp||'—'}Wp</text>
+        </g>
+      ))}
+    </g>
+  );
+};
+
+// ── Diagrama Multifilar Melhorado ──────────────────────────────────────────
+const DiagramaMultifilarMelhorado=({fd,calc})=>{
+  const tipo=fd.tipoLigacao||'Monofásico';
+  const nStr=Math.min(Math.max(num(fd.stringParalelo,1),1),4);
+  const red='#dc2626',blk='#1a1a2e',org='#f97316',grn='#16a34a',blu='#3b82f6',brn='#92400e',gry='#64748b';
+  const condCA={'Monofásico':[{l:'L1',c:blk},{l:'N',c:blu},{l:'PE',c:grn,da:'5,3'}],'Bifásico':[{l:'L1',c:blk},{l:'L2',c:brn},{l:'N',c:blu},{l:'PE',c:grn,da:'5,3'}],'Trifásico':[{l:'L1',c:blk},{l:'L2',c:brn},{l:'L3',c:gry},{l:'N',c:blu},{l:'PE',c:grn,da:'5,3'}]};
+  const conds=condCA[tipo]||condCA['Monofásico'];
+  const GFX=55,SBX=210,INX=410,QDX=610,MTX=800,RDX=970;
+  const strSp=36,ccY0=62;
+  const strYs=Array.from({length:nStr},(_,i)=>ccY0+i*strSp);
+  const caSp=30,caTH=(conds.length-1)*caSp;
+  const caY0=Math.max(ccY0+nStr*strSp+14,180)-caTH/2;
+  const SPEC_CC=`#${fd.secaoCaboCC||'6'}mm² PVC 70° 750V`;
+  const SPEC_CA=`#${fd.secaoCaboCA||'6'}mm² PVC 70° 750V`;
+
+  return(
+    <g>
+      {/* Título */}
+      <text x={500} y={18} fontSize="11" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">DIAGRAMA MULTIFILAR — {tipo.toUpperCase()}</text>
+      <line x1={320} y1={22} x2={680} y2={22} stroke={org} strokeWidth="1.5"/>
+      {/* Separador CC / CA */}
+      <line x1={INX} y1={28} x2={INX} y2={310} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4,3"/>
+      <text x={(GFX+INX)/2} y={48} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">SEÇÃO CC — {SPEC_CC}</text>
+      <text x={(INX+RDX+30)/2} y={48} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">SEÇÃO CA — {SPEC_CA}</text>
+
+      {/* Blocos */}
+      <rect x={GFX-30} y={ccY0-8} width={60} height={nStr*strSp+4} rx="4" fill="white" stroke={blk} strokeWidth="1.5"/>
+      <text x={GFX} y={ccY0+2} fontSize="7" fill={blk} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">GER.FV</text>
+      <rect x={SBX-28} y={ccY0-8} width={56} height={nStr*strSp+4} rx="4" fill="white" stroke={blk} strokeWidth="1.5"/>
+      <text x={SBX} y={ccY0+2} fontSize="7" fill={blk} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">STR.BOX</text>
+      <rect x={INX-44} y={ccY0-8} width={88} height={Math.max(nStr*strSp,caTH)+34} rx="6" fill="white" stroke={org} strokeWidth="2"/>
+      <text x={INX} y={ccY0+4} fontSize="8" fill={org} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">INVERSOR</text>
+      <text x={INX} y={ccY0+16} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">{fd.modeloInversor||'—'}</text>
+      <rect x={QDX-28} y={caY0-10} width={56} height={caTH+20} rx="4" fill="white" stroke={blk} strokeWidth="1.5"/>
+      <text x={QDX} y={caY0} fontSize="7" fill={blk} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">QDC CA</text>
+      <rect x={MTX-26} y={caY0-10} width={52} height={caTH+20} rx="4" fill="white" stroke={grn} strokeWidth="1.5"/>
+      <text x={MTX} y={caY0} fontSize="7" fill={grn} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">MEDIDOR</text>
+      <rect x={RDX-18} y={caY0-10} width={36} height={caTH+20} rx="4" fill="white" stroke={gry} strokeWidth="1.5"/>
+      <text x={RDX} y={caY0} fontSize="7" fill={gry} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">REDE</text>
+
+      {/* Condutores CC */}
+      {strYs.map((sy,i)=>(
+        <g key={`cc${i}`}>
+          <line x1={GFX+30} y1={sy+6} x2={SBX-28} y2={sy+6} stroke={red} strokeWidth="2"/>
+          <line x1={SBX+28} y1={sy+6} x2={INX-44} y2={sy+6} stroke={red} strokeWidth="2"/>
+          <line x1={GFX+30} y1={sy+18} x2={SBX-28} y2={sy+18} stroke={blk} strokeWidth="2"/>
+          <line x1={SBX+28} y1={sy+18} x2={INX-44} y2={sy+18} stroke={blk} strokeWidth="2"/>
+          <text x={(GFX+30+SBX-28)/2} y={sy+2} fontSize="6" fill={red} textAnchor="middle" fontFamily="sans-serif">Str{i+1}(+)</text>
+          <text x={(GFX+30+SBX-28)/2} y={sy+28} fontSize="6" fill={blk} textAnchor="middle" fontFamily="sans-serif">Str{i+1}(&#8722;)</text>
+          <circle cx={SBX} cy={sy+6} r="4" fill="white" stroke={red} strokeWidth="1.2"/>
+          <circle cx={SBX} cy={sy+18} r="4" fill="white" stroke={blk} strokeWidth="1.2"/>
+          <text x={GFX} y={sy+16} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">S{i+1}</text>
+        </g>
+      ))}
+
+      {/* Condutores CA */}
+      {conds.map((c,i)=>{
+        const y=caY0+i*caSp;
+        const isPE=c.l==='PE';
+        const isN=c.l==='N';
+        return(
+          <g key={`ca${i}`}>
+            <line x1={INX+44} y1={y} x2={QDX-28} y2={y} stroke={c.c} strokeWidth={isPE?1.5:2} strokeDasharray={c.da}/>
+            <line x1={QDX+28} y1={y} x2={MTX-26} y2={y} stroke={c.c} strokeWidth={isPE?1.5:2} strokeDasharray={c.da}/>
+            <line x1={MTX+26} y1={y} x2={RDX+24} y2={y} stroke={c.c} strokeWidth={isPE?1.5:2} strokeDasharray={c.da}/>
+            <circle cx={INX+44} cy={y} r="7" fill={c.c} opacity="0.12"/>
+            <text x={INX+44} y={y+4} fontSize="7" fill={c.c} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">{c.l}</text>
+            <circle cx={RDX+24} cy={y} r="7" fill={c.c} opacity="0.12"/>
+            <text x={RDX+24} y={y+4} fontSize="7" fill={c.c} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">{c.l}</text>
+            {!isPE&&!isN&&(
+              <g>
+                <circle cx={QDX} cy={y} r="6" fill="white" stroke={c.c} strokeWidth="1.5"/>
+                <line x1={QDX-4} y1={y-3} x2={QDX+4} y2={y+3} stroke={c.c} strokeWidth="1.5"/>
+                <text x={QDX} y={y+15} fontSize="6" fill={c.c} textAnchor="middle" fontFamily="sans-serif">{fd.disjuntorCA||'—'}A</text>
+              </g>
+            )}
+            <text x={(INX+44+QDX-28)/2} y={y-4} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">{isPE?fd.secaoCaboAterr||'6':fd.secaoCaboCA||'6'}mm²</text>
+          </g>
+        );
+      })}
+      <text x={GFX} y={ccY0+nStr*strSp+18} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">{num(fd.stringParalelo,1)}&#215;{num(fd.paineisSerie,1)} painéis</text>
+      <text x={GFX} y={ccY0+nStr*strSp+28} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">{fd.potenciaUnitariaWp||'—'}Wp ea.</text>
+      <text x={MTX} y={caY0+caTH+18} fontSize="6" fill={grn} textAnchor="middle" fontFamily="sans-serif">Bidirecional CEEE</text>
+    </g>
+  );
+};
+
+// ── Prancha Completa SVG — Layout Profissional 1600×980 ───────────────────
+const PranchaCompleta=React.forwardRef(({fd,calc},ref)=>{
+  const W=1600,H=980;
+  const org='#f97316',blk='#1a1a2e',gry='#64748b',sl='#cbd5e1',grn='#16a34a';
+  const HD=65,UNI_W=540,RIG_X=540,MFW=1045;
+  // Row Y positions (content area starts at HD=65, ends at 840)
+  const MF_Y=HD,MF_H=330;       // multifilar: y=65, h=330 → bottom=395
+  const D1_Y=395,D1_H=220;      // padrão+aterramento: y=395, h=220 → bottom=615
+  const D2_Y=615,D2_H=225;      // simbologia+dados: y=615, h=225 → bottom=840
+  const CB_Y=840,CB_H=90;       // carimbo: y=840, h=90 → bottom=930
+  const FT_Y=930,FT_H=50;       // footer normas: y=930, h=50 → bottom=980
+
+  return(
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg" style={{width:'100%',background:'white'}}>
+      {/* ══════ HEADER ══════ */}
+      <rect x={0} y={0} width={W} height={HD} fill={blk}/>
+      <rect x={0} y={HD-2} width={W} height={2} fill={org}/>
+      {/* Logo */}
+      <circle cx={40} cy={32} r={18} fill={org} opacity="0.18"/>
+      {[0,60,120,180,240,300].map((a,i)=>{const r=a*Math.PI/180,x1=40+14*Math.sin(r),y1=32-14*Math.cos(r),x2=40+20*Math.sin(r),y2=32-20*Math.cos(r);return<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={org} strokeWidth="2"/>;}) }
+      <text x={68} y={28} fontSize="16" fill="white" fontWeight="800" fontFamily="sans-serif">Instalight</text>
+      <text x={68} y={44} fontSize="9" fill={org} fontFamily="sans-serif">Energia Solar</text>
+      {/* Título central */}
+      <text x={W/2} y={24} fontSize="14" fill="white" textAnchor="middle" fontWeight="700" fontFamily="sans-serif">PRANCHA ELÉTRICA — SISTEMA FOTOVOLTAICO ON-GRID</text>
+      <text x={W/2} y={40} fontSize="10" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">{fd.nomeCliente||'Cliente'} | UC: {fd.codigoUC||'—'} | {fd.endereco||'Endereço'}</text>
+      <text x={W/2} y={56} fontSize="9" fill={org} textAnchor="middle" fontFamily="sans-serif">{calc.enq} | {calc.kWp} kWp CC / {calc.kWtCA} kW CA | {fd.tipoLigacao} | CEEE Equatorial</text>
+      {/* Carimbo mini direita */}
+      <rect x={W-290} y={4} width={285} height={57} rx="3" fill="#0f172a" stroke={org} strokeWidth="1"/>
+      <text x={W-147} y={17} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">RESPONSÁVEL TÉCNICO</text>
+      <text x={W-147} y={30} fontSize="9" fill="white" textAnchor="middle" fontWeight="700" fontFamily="sans-serif">{fd.nomeResponsavel||'—'}</text>
+      <text x={W-147} y={42} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">CRT: {fd.numeroCRT||'—'} | ART: {fd.numART||'—'}</text>
+      <line x1={W-290} y1={48} x2={W-5} y2={48} stroke="#334155" strokeWidth="1"/>
+      <text x={W-240} y={58} fontSize="7" fill={gry} fontFamily="sans-serif">PE: {fd.numProjeto||'—'}</text>
+      <text x={W-147} y={58} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">Rev.0 | Fl.1/1 | S/E</text>
+      <text x={W-60} y={58} fontSize="7" fill={gry} fontFamily="sans-serif">{fd.dataproject||'—'}</text>
+
+      {/* ══════ COLUNA ESQUERDA — UNIFILAR VERTICAL (540×775) ══════ */}
+      <rect x={0} y={HD} width={UNI_W} height={H-HD-CB_H-FT_H} fill="white"/>
+      <line x1={UNI_W} y1={HD} x2={UNI_W} y2={CB_Y} stroke={sl} strokeWidth="1"/>
+      <g transform={`translate(0,${HD+10})`}>
+        <DiagramaUnifilarVertical fd={fd} calc={calc}/>
+      </g>
+
+      {/* ══════ COLUNA DIREITA — MULTIFILAR (1045×330) ══════ */}
+      <rect x={RIG_X} y={MF_Y} width={MFW} height={MF_H} fill="white"/>
+      <line x1={RIG_X} y1={MF_Y+MF_H} x2={W} y2={MF_Y+MF_H} stroke={sl} strokeWidth="1"/>
+      <g transform={`translate(${RIG_X+12},${MF_Y+14})`}>
+        <DiagramaMultifilarMelhorado fd={fd} calc={calc}/>
+      </g>
+
+      {/* ══════ PADRÃO DE ENTRADA (520×220) ══════ */}
+      <rect x={RIG_X} y={D1_Y} width={520} height={D1_H} fill="white"/>
+      <line x1={RIG_X+520} y1={D1_Y} x2={RIG_X+520} y2={D1_Y+D1_H} stroke={sl} strokeWidth="1"/>
+      <line x1={RIG_X} y1={D1_Y+D1_H} x2={W} y2={D1_Y+D1_H} stroke={sl} strokeWidth="1"/>
+      <text x={RIG_X+260} y={D1_Y+16} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">DETALHE — PADRÃO DE ENTRADA</text>
+      <text x={RIG_X+260} y={D1_Y+28} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">SEM ESCALA</text>
+      {/* Poste */}
+      <rect x={RIG_X+40} y={D1_Y+40} width={8} height={140} rx="2" fill={gry}/>
+      <line x1={RIG_X+44} y1={D1_Y+40} x2={RIG_X+120} y2={D1_Y+48} stroke={blk} strokeWidth="1.5"/>
+      <line x1={RIG_X+44} y1={D1_Y+58} x2={RIG_X+120} y2={D1_Y+64} stroke={blk} strokeWidth="1.5"/>
+      {/* Caixa medidor */}
+      <rect x={RIG_X+120} y={D1_Y+50} width={80} height={60} rx="4" fill="white" stroke={grn} strokeWidth="1.8"/>
+      <text x={RIG_X+160} y={D1_Y+68} fontSize="8" fill={grn} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">M &#8644;</text>
+      <text x={RIG_X+160} y={D1_Y+80} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">Bidirecional</text>
+      <text x={RIG_X+160} y={D1_Y+92} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">CEEE instala</text>
+      {/* Cabo entrada */}
+      <line x1={RIG_X+200} y1={D1_Y+80} x2={RIG_X+280} y2={D1_Y+80} stroke={blk} strokeWidth="2"/>
+      <text x={RIG_X+240} y={D1_Y+74} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">#{fd.secaoCaboCA||'16'}mm²</text>
+      {/* Disjuntor geral */}
+      <CBSym x={RIG_X+290} y={D1_Y+80} c={blk}/>
+      <text x={RIG_X+290} y={D1_Y+100} fontSize="7" fill={blk} textAnchor="middle" fontFamily="sans-serif">DJ {fd.disjuntorCA||'—'}A</text>
+      {/* QDC */}
+      <rect x={RIG_X+330} y={D1_Y+60} width={80} height={40} rx="4" fill="white" stroke={blk} strokeWidth="1.5"/>
+      <text x={RIG_X+370} y={D1_Y+76} fontSize="8" fill={blk} textAnchor="middle" fontWeight="600" fontFamily="sans-serif">QDC CA</text>
+      <text x={RIG_X+370} y={D1_Y+88} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">→ QDC</text>
+      <line x1={RIG_X+310} y1={D1_Y+80} x2={RIG_X+330} y2={D1_Y+80} stroke={blk} strokeWidth="2"/>
+      {/* GND */}
+      <GndSym x={RIG_X+44} y={D1_Y+175} c={grn}/>
+      <text x={RIG_X+100} y={D1_Y+195} fontSize="7" fill={gry} fontFamily="sans-serif">* Medidor bidirecional instalado pela CEEE Equatorial</text>
+      <text x={RIG_X+100} y={D1_Y+206} fontSize="7" fill={gry} fontFamily="sans-serif">  Ramal de entrada conforme padrão CEEE vigente</text>
+
+      {/* ══════ DETALHE ATERRAMENTO (520×220) ══════ */}
+      <rect x={RIG_X+520} y={D1_Y} width={520} height={D1_H} fill="white"/>
+      <text x={RIG_X+780} y={D1_Y+16} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">DETALHE — SISTEMA DE ATERRAMENTO</text>
+      <text x={RIG_X+780} y={D1_Y+28} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">SEM ESCALA</text>
+      {/* 3 hastes */}
+      {[80,200,320].map((hx,i)=>(
+        <g key={i}>
+          <rect x={RIG_X+520+hx-4} y={D1_Y+70} width={8} height={80} rx="1" fill={gry}/>
+          <GndSym x={RIG_X+520+hx} y={D1_Y+65} c={grn}/>
+          <text x={RIG_X+520+hx} y={D1_Y+160} fontSize="6" fill={gry} textAnchor="middle" fontFamily="sans-serif">5/8&#34;&#215;2400mm</text>
+        </g>
+      ))}
+      {/* Cabo nu ligando hastes */}
+      <line x1={RIG_X+520+80} y1={D1_Y+85} x2={RIG_X+520+320} y2={D1_Y+85} stroke="#ca8a04" strokeWidth="2.5"/>
+      <text x={RIG_X+780} y={D1_Y+80} fontSize="7" fill="#ca8a04" textAnchor="middle" fontFamily="sans-serif">Cu nu #16mm²</text>
+      {/* Caixa inspeção */}
+      <rect x={RIG_X+520+180} y={D1_Y+100} width={40} height={40} rx="2" fill="white" stroke={gry} strokeWidth="1.5"/>
+      <line x1={RIG_X+520+180} y1={D1_Y+100} x2={RIG_X+520+220} y2={D1_Y+140} stroke={gry} strokeWidth="1"/>
+      <line x1={RIG_X+520+220} y1={D1_Y+100} x2={RIG_X+520+180} y2={D1_Y+140} stroke={gry} strokeWidth="1"/>
+      <text x={RIG_X+780} y={D1_Y+155} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">Caixa de inspeção</text>
+      <text x={RIG_X+780} y={D1_Y+170} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">Espaçamento: 3,0m entre hastes</text>
+      <text x={RIG_X+780} y={D1_Y+185} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">Resistência &#8804; 10 &#937; conforme NBR 5419</text>
+
+      {/* ══════ SIMBOLOGIA (520×225) ══════ */}
+      <rect x={RIG_X} y={D2_Y} width={520} height={D2_H} fill="white"/>
+      <line x1={RIG_X+520} y1={D2_Y} x2={RIG_X+520} y2={D2_Y+D2_H} stroke={sl} strokeWidth="1"/>
+      <text x={RIG_X+260} y={D2_Y+16} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">SIMBOLOGIA / LEGENDA</text>
+      <line x1={RIG_X+10} y1={D2_Y+22} x2={RIG_X+510} y2={D2_Y+22} stroke={sl} strokeWidth="1"/>
+      {[
+        {sym:<CBSym x={RIG_X+30} y={D2_Y+42} c={blk}/>,label:'Disjuntor termomagnético'},
+        {sym:<DPSSym x={RIG_X+30} y={D2_Y+76} c={blk}/>,label:'DPS — Prot. contra surtos'},
+        {sym:<GndSym x={RIG_X+30} y={D2_Y+108} c={grn}/>,label:'Aterramento / Terra (PE)'},
+        {sym:<PanelCell x={RIG_X+12} y={D2_Y+128} w={36} h={22}/>,label:'Módulo fotovoltaico'},
+      ].map((item,i)=>(
+        <g key={i}>{item.sym}<text x={RIG_X+60} y={D2_Y+38+i*34} fontSize="8" fill={blk} fontFamily="sans-serif">{item.label}</text></g>
+      ))}
+      {/* Condutores da legenda */}
+      {[
+        {y:D2_Y+170,c:'#dc2626',da:undefined,label:'Condutor CC (+) positivo'},
+        {y:D2_Y+186,c:blk,da:undefined,label:'Condutor CC (−) negativo'},
+        {y:D2_Y+202,c:blk,da:undefined,label:'Condutor CA fase (L1)'},
+        {y:D2_Y+218,c:'#3b82f6',da:undefined,label:'Condutor neutro (N)'},
+      ].map((row,i)=>(
+        <g key={i}>
+          <line x1={RIG_X+12} y1={row.y} x2={RIG_X+50} y2={row.y} stroke={row.c} strokeWidth="2" strokeDasharray={row.da}/>
+          <text x={RIG_X+58} y={row.y+4} fontSize="8" fill={blk} fontFamily="sans-serif">{row.label}</text>
+        </g>
+      ))}
+      <line x1={RIG_X+12} y1={D2_Y+234} x2={RIG_X+50} y2={D2_Y+234} stroke={grn} strokeWidth="1.5" strokeDasharray="5,3"/>
+      <text x={RIG_X+58} y={D2_Y+238} fontSize="8" fill={blk} fontFamily="sans-serif">Condutor PE / aterramento</text>
+
+      {/* ══════ DADOS DO PROJETO (520×225) ══════ */}
+      <rect x={RIG_X+520} y={D2_Y} width={520} height={D2_H} fill="white"/>
+      <text x={RIG_X+780} y={D2_Y+16} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">DADOS DO PROJETO</text>
+      <line x1={RIG_X+530} y1={D2_Y+22} x2={W-10} y2={D2_Y+22} stroke={sl} strokeWidth="1"/>
+      {[
+        [`Módulo FV:`,`${fd.modeloPainel||'—'} — ${fd.potenciaUnitariaWp||'—'} Wp`],
+        [`Inversor:`,`${fd.modeloInversor||'—'} — ${num(fd.potenciaCAkW)*num(fd.quantidadeInversores,1)||'—'} kW`],
+        [`Configuração:`,`${fd.paineisSerie||'—'}S × ${fd.stringParalelo||'—'}P (${num(fd.numeroPaineis,0)} módulos)`],
+        [`Potência CC:`,`${calc.kWp} kWp`],
+        [`Potência CA:`,`${calc.kWtCA} kW`],
+        [`Tensão/Ligação:`,`${fd.tipoLigacao||'—'} — 220V`],
+        [`Enquadramento:`,calc.enq],
+        [`Geração estimada:`,`${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano`],
+        [`CO₂ evitado:`,`${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg/ano`],
+        [`Cabo CC:`,`#${fd.secaoCaboCC||'6'}mm² PVC 70° 750V`],
+        [`Cabo CA:`,`#${fd.secaoCaboCA||'6'}mm² PVC 70° 750V`],
+        [`Proteção CC:`,`DPS ${fd.dpsCCTensao||'1000'}V CC`],
+        [`Proteção CA:`,`DJ ${fd.disjuntorCA||'—'}A | DPS ${fd.dpsCATensao||'275'}V CA`],
+      ].map(([k,v],i)=>(
+        <g key={i}>
+          <text x={RIG_X+535} y={D2_Y+36+i*15} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="600">{k}</text>
+          <text x={RIG_X+650} y={D2_Y+36+i*15} fontSize="8" fill={blk} fontFamily="sans-serif">{v}</text>
+        </g>
+      ))}
+
+      {/* ══════ CARIMBO COMPLETO 4 colunas (1600×90) ══════ */}
+      <rect x={0} y={CB_Y} width={W} height={CB_H} fill="#f8fafc"/>
+      <line x1={0} y1={CB_Y} x2={W} y2={CB_Y} stroke={blk} strokeWidth="2"/>
+      {[400,800,1200].map(x=><line key={x} x1={x} y1={CB_Y} x2={x} y2={CB_Y+CB_H} stroke={sl} strokeWidth="1"/>)}
+      {/* Col 1 — Empresa */}
+      <text x={10} y={CB_Y+16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">EMPRESA INSTALADORA</text>
+      <text x={10} y={CB_Y+30} fontSize="9" fill={blk} fontFamily="sans-serif" fontWeight="700">{fd.nomeEmpresa||'Instalight Energia Solar'}</text>
+      <text x={10} y={CB_Y+44} fontSize="8" fill={gry} fontFamily="sans-serif">CNPJ: {fd.cnpjEmpresa||'—'}</text>
+      <text x={10} y={CB_Y+58} fontSize="8" fill={gry} fontFamily="sans-serif">{fd.enderecoEmpresa||'—'}</text>
+      {/* Col 2 — UC */}
+      <text x={410} y={CB_Y+16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">UNIDADE CONSUMIDORA</text>
+      <text x={410} y={CB_Y+30} fontSize="9" fill={blk} fontFamily="sans-serif" fontWeight="700">{fd.nomeCliente||'—'}</text>
+      <text x={410} y={CB_Y+44} fontSize="8" fill={gry} fontFamily="sans-serif">UC: {fd.codigoUC||'—'} | CPF/CNPJ: {fd.cpfCnpj||'—'}</text>
+      <text x={410} y={CB_Y+58} fontSize="8" fill={gry} fontFamily="sans-serif">{fd.endereco||'—'}</text>
+      {/* Col 3 — RT */}
+      <text x={810} y={CB_Y+16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">RESPONSÁVEL TÉCNICO</text>
+      <text x={810} y={CB_Y+30} fontSize="9" fill={blk} fontFamily="sans-serif" fontWeight="700">{fd.nomeResponsavel||'—'}</text>
+      <text x={810} y={CB_Y+44} fontSize="8" fill={gry} fontFamily="sans-serif">CRT: {fd.numeroCRT||'—'}</text>
+      <text x={810} y={CB_Y+58} fontSize="8" fill={gry} fontFamily="sans-serif">ART: {fd.numART||'—'}</text>
+      {/* Col 4 — Projeto */}
+      <text x={1210} y={CB_Y+16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">IDENTIFICAÇÃO DO PROJETO</text>
+      <text x={1210} y={CB_Y+30} fontSize="8" fill={blk} fontFamily="sans-serif">Nº PE: {fd.numProjeto||'—'}</text>
+      <text x={1210} y={CB_Y+44} fontSize="8" fill={blk} fontFamily="sans-serif">Data: {fd.dataproject||'—'} | Rev.: 0</text>
+      <text x={1210} y={CB_Y+58} fontSize="8" fill={blk} fontFamily="sans-serif">Folha: 1/1 | Escala: S/E</text>
+      {/* Linha inferior carimbo */}
+      <line x1={0} y1={CB_Y+CB_H-18} x2={W} y2={CB_Y+CB_H-18} stroke={sl} strokeWidth="1"/>
+      <text x={W/2} y={CB_Y+CB_H-6} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">
+        Elaborado conforme ABNT NBR 16690, NBR 5410, NBR 5419, REN ANEEL 1.000/2021 e Lei Federal 14.300/2022
+      </text>
+
+      {/* ══════ FOOTER NORMAS ══════ */}
+      <rect x={0} y={FT_Y} width={W} height={FT_H} fill="#f1f5f9"/>
+      <line x1={0} y1={FT_Y} x2={W} y2={FT_Y} stroke={sl} strokeWidth="1"/>
+      <text x={W/2} y={FT_Y+18} fontSize="9" fill={gry} textAnchor="middle" fontFamily="sans-serif">
+        {calc.enq} | Prazo análise CEEE: {calc.prazo} | {fd.cidade||'Porto Alegre'}/{fd.dataproject||''}
+      </text>
+      <text x={W/2} y={FT_Y+34} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
+        Microgeração/Minigeração Distribuída Solar Fotovoltaica — Conexão à rede CEEE Equatorial
+      </text>
+    </svg>
+  );
+});
+
+// ── Upload Module ──────────────────────────────────────────────────────────
+const UploadModule=({apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingData,setExtractingData})=>{
+  const [drag,setDrag]=useState(false);
+  const inputRef=useRef();
+
+  const handleFiles=(files)=>{
+    const valid=[...files].filter(f=>
+      ['application/pdf','image/jpeg','image/png','image/webp'].includes(f.type)
+    );
+    setUploadedFiles(p=>[...p,...valid]);
+  };
+
+  const onDrop=(e)=>{e.preventDefault();setDrag(false);handleFiles(e.dataTransfer.files);};
+
+  const extract=async()=>{
+    if(!apiKey){alert('Informe sua API Key primeiro.');return;}
+    if(!uploadedFiles.length){alert('Adicione pelo menos um arquivo.');return;}
+    setExtractingData(true);
+    try{
+      const parts=await Promise.all(uploadedFiles.map(async f=>{
+        const data=await fileToBase64(f);
+        if(f.type==='application/pdf')
+          return{type:'document',source:{type:'base64',media_type:'application/pdf',data}};
+        return{type:'image',source:{type:'base64',media_type:f.type,data}};
+      }));
+      const schema=`{
+"nomeCliente":"","cpfCnpj":"","endereco":"","codigoUC":"","numeroFatura":"",
+"tipoLigacao":"","numeroPaineis":null,"modeloPainel":"","potenciaUnitariaWp":null,
+"paineisSerie":null,"stringParalelo":null,
+"modeloInversor":"","potenciaCAkW":null,"tensaoEntradaCC":null,"tensaoSaidaCA":null,
+"quantidadeInversores":null,"dpsCCTipo":"","dpsCCTensao":null,
+"dpsCAipo":"","dpsCATensao":null,"disjuntorCC":null,"disjuntorCA":null,
+"aterramento":"","nomeResponsavel":"","numeroCRT":"","cidade":"",
+"confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`;
+      const res=await callAPI(
+        apiKey,
+        'Você é um assistente especializado em extração de dados de documentos de sistemas fotovoltaicos. Extraia exatamente os dados solicitados e retorne APENAS JSON válido, sem markdown.',
+        [{role:'user',content:[
+          ...parts,
+          {type:'text',text:`Extraia os dados técnicos e do cliente destes documentos e retorne JSON no formato exato:\n${schema}\n\nSe um campo não for encontrado, deixe null ou "". Informe confiancaExtracao com base na qualidade dos dados encontrados.`}
+        ]}],
+        2000
+      );
+      const txt=res.content[0].text;
+      const json=JSON.parse(txt.replace(/```json\n?|\n?```/g,'').trim());
+      onExtract(json);
+    }catch(e){
+      alert('Erro ao extrair dados: '+e.message);
+    }finally{
+      setExtractingData(false);
+    }
+  };
+
+  return(
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Extração de Dados por IA</span>
+      </div>
+      <div
+        onDragOver={e=>{e.preventDefault();setDrag(true);}}
+        onDragLeave={()=>setDrag(false)}
+        onDrop={onDrop}
+        onClick={()=>inputRef.current.click()}
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${drag?'border-orange-400 bg-orange-50':'border-slate-300 hover:border-orange-300'}`}
+      >
+        <div className="text-2xl mb-1">📄</div>
+        <p className="text-xs text-slate-500">Arraste faturas, datasheets, fichas técnicas</p>
+        <p className="text-xs text-slate-400">PDF, JPG, PNG, WEBP</p>
+        <input ref={inputRef} type="file" multiple accept=".pdf,image/*" className="hidden" onChange={e=>handleFiles(e.target.files)}/>
+      </div>
+      {uploadedFiles.length>0&&(
+        <div className="mt-2 space-y-1">
+          {uploadedFiles.map((f,i)=>(
+            <div key={i} className="flex items-center justify-between bg-slate-50 rounded px-2 py-1 text-xs">
+              <span className="truncate text-slate-700">{f.type==='application/pdf'?'📄':'🖼️'} {f.name}</span>
+              <button onClick={()=>setUploadedFiles(p=>p.filter((_,j)=>j!==i))} className="text-slate-400 hover:text-red-400 ml-1">×</button>
+            </div>
+          ))}
+          <button
+            onClick={extract}
+            disabled={extractingData||!apiKey}
+            className="w-full mt-1 py-2 text-xs font-semibold rounded bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {extractingData?(<><span className="spinner"/><span>Analisando…</span></>):'🤖 Extrair dados com IA'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Sidebar helpers ────────────────────────────────────────────────────────
+const CollapsibleSection=({title,icon,children,defaultOpen=false})=>{
+  const [open,setOpen]=useState(defaultOpen);
+  return(
+    <div className="mb-1 border border-slate-200 rounded-lg overflow-hidden">
+      <button
+        onClick={()=>setOpen(o=>!o)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-white hover:bg-slate-50 text-left"
+      >
+        <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">{icon} {title}</span>
+        <span className="text-slate-400 text-sm">{open?'▲':'▼'}</span>
+      </button>
+      {open&&<div className="px-3 py-2 bg-white border-t border-slate-100 space-y-2">{children}</div>}
+    </div>
+  );
+};
+
+const FormField=({label,name,value,onChange,type='text',options,readonly,aiFields,placeholder})=>{
+  const isAI=aiFields&&aiFields.has(name);
+  const cls=`w-full text-xs rounded border px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-400 ${isAI?'ai-field':'border-slate-300'}`;
+  return(
+    <div>
+      <label className="block text-xs text-slate-500 mb-0.5">
+        {label}{isAI&&<span className="ml-1 text-orange-400">✨</span>}
+      </label>
+      {options?(
+        <select name={name} value={value} onChange={onChange} className={cls}>
+          {options.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+      ):(
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          readOnly={readonly}
+          placeholder={placeholder}
+          className={cls+(readonly?' bg-slate-50 text-slate-400':'')}
+        />
+      )}
+    </div>
+  );
+};
+
+const Sidebar=({fd,onChange,calc,apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingData,setExtractingData,aiFilledFields})=>(
+  <div className="w-96 flex-shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto p-3">
+    <UploadModule
+      apiKey={apiKey}
+      onExtract={onExtract}
+      uploadedFiles={uploadedFiles}
+      setUploadedFiles={setUploadedFiles}
+      extractingData={extractingData}
+      setExtractingData={setExtractingData}
+    />
+
+    <CollapsibleSection title="Cliente" icon="👤" defaultOpen={true}>
+      <FormField label="Tipo de Pessoa" name="tipoPessoa" value={fd.tipoPessoa} onChange={onChange}
+        options={['fisica','juridica']} aiFields={aiFilledFields}/>
+      <FormField label="Nome / Razão Social" name="nomeCliente" value={fd.nomeCliente} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label={fd.tipoPessoa==='fisica'?'CPF':'CNPJ'} name="cpfCnpj" value={fd.cpfCnpj} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Endereço da UC" name="endereco" value={fd.endereco} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Código UC" name="codigoUC" value={fd.codigoUC} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Conta-Contrato UC" name="numContaContrato" value={fd.numContaContrato} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678"/>
+      <FormField label="Nº Fatura" name="numeroFatura" value={fd.numeroFatura} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Consumo médio mensal (kWh)" name="consumoMensalKwh" value={fd.consumoMensalKwh} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 350"/>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Sistema Fotovoltaico" icon="☀️" defaultOpen={true}>
+      <FormField label="Tipo de Ligação" name="tipoLigacao" value={fd.tipoLigacao} onChange={onChange}
+        options={['Monofásico','Bifásico','Trifásico']} aiFields={aiFilledFields}/>
+      <FormField label="Nº de Painéis (total)" name="numeroPaineis" value={fd.numeroPaineis} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Modelo do Painel" name="modeloPainel" value={fd.modeloPainel} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Potência Unit. (Wp)" name="potenciaUnitariaWp" value={fd.potenciaUnitariaWp} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Painéis em Série (por string)" name="paineisSerie" value={fd.paineisSerie} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Strings em Paralelo" name="stringParalelo" value={fd.stringParalelo} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <div className="flex items-center gap-2 bg-orange-50 rounded px-2 py-1 text-xs">
+        <span className="text-slate-500">Potência CC:</span>
+        <span className="font-bold text-orange-600">{calc.kWp} kWp</span>
+        <span className="ml-2 text-slate-500">Enq.:</span>
+        <span className="font-semibold text-orange-600 text-xs">{calc.enq}</span>
+      </div>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Inversor" icon="⚡">
+      <FormField label="Modelo do Inversor" name="modeloInversor" value={fd.modeloInversor} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Potência CA (kW)" name="potenciaCAkW" value={fd.potenciaCAkW} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Tensão Entrada CC (V)" name="tensaoEntradaCC" value={fd.tensaoEntradaCC} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Tensão Saída CA (V)" name="tensaoSaidaCA" value={fd.tensaoSaidaCA} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Qtd. Inversores" name="quantidadeInversores" value={fd.quantidadeInversores} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <div className="bg-orange-50 rounded px-2 py-1 text-xs text-orange-700">
+        Potência CA total: <strong>{calc.kWtCA} kW</strong>
+      </div>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Cabos e Dimensionamento" icon="🔌">
+      <FormField label="Seção Cabo CC (mm²)" name="secaoCaboCC" value={fd.secaoCaboCC} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Comprimento Cabos CC (m)" name="comprimentoCabosCC" value={fd.comprimentoCabosCC} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Seção Cabo CA (mm²)" name="secaoCaboCA" value={fd.secaoCaboCA} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Comprimento Cabos CA (m)" name="comprimentoCabosCA" value={fd.comprimentoCabosCA} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Seção Aterramento (mm²)" name="secaoCaboAterr" value={fd.secaoCaboAterr} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <div className="text-xs text-slate-500 bg-slate-50 rounded p-2 space-y-0.5">
+        <div>ΔV CC: <strong>{calc.dvccV}V ({calc.dvccP}%)</strong></div>
+        <div>ΔV CA: <strong>{calc.dvcaV}V ({calc.dvcaP}%)</strong></div>
+      </div>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Proteções" icon="🛡️">
+      <FormField label="DPS CC Tipo" name="dpsCCTipo" value={fd.dpsCCTipo} onChange={onChange}
+        options={['Tipo 1','Tipo 2','Tipo 1+2']} aiFields={aiFilledFields}/>
+      <FormField label="DPS CC Tensão (V)" name="dpsCCTensao" value={fd.dpsCCTensao} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="DPS CA Tipo" name="dpsCAipo" value={fd.dpsCAipo} onChange={onChange}
+        options={['Tipo 1','Tipo 2','Tipo 1+2']} aiFields={aiFilledFields}/>
+      <FormField label="DPS CA Tensão (V)" name="dpsCATensao" value={fd.dpsCATensao} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Disjuntor CC (A)" name="disjuntorCC" value={fd.disjuntorCC} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Disjuntor CA (A)" name="disjuntorCA" value={fd.disjuntorCA} onChange={onChange} type="number" aiFields={aiFilledFields}/>
+      <FormField label="Aterramento" name="aterramento" value={fd.aterramento} onChange={onChange} aiFields={aiFilledFields}/>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Instalação" icon="🏠">
+      <FormField label="Tipo de Telhado" name="tipoTelhado" value={fd.tipoTelhado} onChange={onChange}
+        options={['Cerâmico','Metálico','Fibrocimento','Laje','Solo']} aiFields={aiFilledFields}/>
+      <FormField label="Coordenadas GPS (opcional)" name="coordenadas" value={fd.coordenadas} onChange={onChange}
+        placeholder="Ex: 30.0330°S, 51.2300°W" aiFields={aiFilledFields}/>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Empresa Instaladora" icon="🏢">
+      <FormField label="Nome da Empresa" name="nomeEmpresa" value={fd.nomeEmpresa} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="CNPJ" name="cnpjEmpresa" value={fd.cnpjEmpresa} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Endereço" name="enderecoEmpresa" value={fd.enderecoEmpresa} onChange={onChange} aiFields={aiFilledFields}/>
+    </CollapsibleSection>
+
+    <CollapsibleSection title="Responsável Técnico" icon="👷">
+      <FormField label="Nome do RT" name="nomeResponsavel" value={fd.nomeResponsavel} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Nº CRT/CREA" name="numeroCRT" value={fd.numeroCRT} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Nº ART" name="numART" value={fd.numART} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Nº Projeto (PE)" name="numProjeto" value={fd.numProjeto} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Cidade" name="cidade" value={fd.cidade} onChange={onChange} aiFields={aiFilledFields}/>
+      <FormField label="Data do Projeto" name="dataproject" value={fd.dataproject} onChange={onChange} aiFields={aiFilledFields}/>
+    </CollapsibleSection>
+  </div>
+);
+
+// ── Aba Diagramas ──────────────────────────────────────────────────────────
+const DiagramasTab=({fd,calc,svgRef})=>{
+  const exportSVG=()=>{
+    const svg=svgRef.current;
+    if(!svg)return;
+    const s=new XMLSerializer().serializeToString(svg);
+    const b=new Blob([s],{type:'image/svg+xml'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b);
+    a.download=`prancha_${fd.nomeCliente||'instalight'}.svg`;
+    a.click();
+  };
+
+  const exportPDF=async()=>{
+    const svg=svgRef.current;
+    if(!svg)return;
+    try{
+      const canvas=await html2canvas(svg,{scale:1.5,useCORS:true,backgroundColor:'white'});
+      const img=canvas.toDataURL('image/jpeg',0.92);
+      const doc=makePDF('l','a3');
+      const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+      doc.addImage(img,'JPEG',5,5,W-10,H-10);
+      doc.save(`prancha_${fd.nomeCliente||'instalight'}.pdf`);
+    }catch(e){alert('Erro ao gerar PDF: '+e.message);}
+  };
+
+  return(
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-white">
+        <div>
+          <h2 className="font-semibold text-slate-800">Prancha Elétrica — Unifilar + Pluri</h2>
+          <p className="text-xs text-slate-500">Atualiza em tempo real conforme o formulário</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportSVG} className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50">
+            Exportar SVG
+          </button>
+          <button onClick={exportPDF} className="px-3 py-1.5 text-xs font-medium rounded bg-orange-500 text-white hover:bg-orange-600">
+            Exportar PDF (A3)
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-4 bg-slate-100">
+        <div className="shadow-lg rounded-lg overflow-hidden">
+          <PranchaCompleta ref={svgRef} fd={fd} calc={calc}/>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Aba Memorial ───────────────────────────────────────────────────────────
+const MemorialTab=({fd,calc,apiKey,memorialIA,setMemorialIA,generatingMemorial,setGeneratingMemorial,setToast,setDocsGerados})=>{
+
+  const SYS_PROMPT=`Você é um engenheiro eletricista sênior da Instalight Energia Solar, especializado em projetos de geração distribuída fotovoltaica para aprovação na CEEE Equatorial (Rio Grande do Sul).
+Redige memoriais técnicos no padrão dos projetos reais aprovados pela distribuidora, conforme a NT.00020.EQTL-06 e ABNT NBR 16690.
+
+ESTILO: Linguagem técnica formal, objetiva, terceira pessoa, sem parágrafos introdutórios genéricos. Direto ao ponto.
+REGULAÇÃO: Cite exclusivamente Lei Federal 14.300/2022 e REN ANEEL 1.000/2021. NUNCA cite REN 482, REN 687 ou resoluções obsoletas.
+NORMAS: ABNT NBR 16690, NBR 5410, NBR 5419, NBR IEC 62116, PRODIST Módulo 3.
+NÚMEROS: Todos os valores numéricos técnicos já estão calculados no documento. Não recalcule, não altere nenhum valor.
+TAREFA: Complete APENAS os quatro marcadores [[[IA_NARRATIVA_SECx]]] com 2–4 parágrafos técnicos formais cada. Não altere nenhuma outra parte do documento. Retorne o documento completo com os marcadores substituídos.`;
+
+  const gerarMemorial=async()=>{
+    if(!apiKey){setToast({message:'Informe a API Key no cabeçalho.',type:'error'});return;}
+    setGeneratingMemorial(true);
+    try{
+      const template=buildMemorialTemplate(fd,calc);
+      const instrucoes=`O documento a seguir é um Memorial Técnico-Descritivo de sistema fotovoltaico gerado automaticamente. Ele contém 4 marcadores [[[IA_NARRATIVA_SECx]]] que você deve preencher com texto técnico formal.
+
+Contexto do projeto:
+- Cliente: ${fd.nomeCliente||'[não informado]'} | Endereço: ${fd.endereco||'[não informado]'}
+- Sistema: ${calc.kWp} kWp / ${calc.kWtCA} kW CA | ${fd.tipoLigacao} | ${fd.numeroPaineis||'?'} módulos ${fd.modeloPainel||''}
+- Enquadramento: ${calc.enq} | Telhado: ${fd.tipoTelhado}
+- Geração estimada: ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
+- CO₂ evitado: ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg/ano | Árvores equiv.: ${calc.arvoresEquivalente}
+
+Instruções para cada marcador:
+[[[IA_NARRATIVA_SEC1]]] — OBJETIVO: 2–3 parágrafos apresentando o propósito do documento, os dados do cliente/UC, a empresa instaladora e o responsável técnico. Mencionar Lei 14.300/2022 e REN 1.000/2021.
+[[[IA_NARRATIVA_SEC7]]] — ESTRUTURA DE FIXAÇÃO: 2–3 parágrafos descrevendo tecnicamente a estrutura de suporte para telhado do tipo "${fd.tipoTelhado}", materiais (alumínio anodizado, inox), critérios de resistência ao vento e corrosão.
+[[[IA_NARRATIVA_SEC10]]] — IMPACTO AMBIENTAL: 2–3 parágrafos sobre redução de emissões (use os valores de CO₂ e árvores já calculados), contribuição para a matriz energética renovável e benefícios para a UC.
+[[[IA_NARRATIVA_SEC12]]] — COMISSIONAMENTO (parágrafo introdutório apenas): 1–2 parágrafos introdutórios sobre a necessidade e objetivos do comissionamento, os critérios de aceitação gerais e a obrigatoriedade de profissional habilitado NR-10. As sub-etapas já estão escritas — não as duplique.
+
+Retorne o documento completo com os marcadores substituídos pelo texto técnico.
+
+DOCUMENTO:
+${template}`;
+
+      const res=await callAPI(apiKey,SYS_PROMPT,[{role:'user',content:instrucoes}],4000);
+      const texto=res.content[0].text;
+      setMemorialIA(texto);
+      setDocsGerados(p=>({...p,memorial:true}));
+      setToast({message:'Memorial profissional gerado! 15 seções conforme NT.00020.EQTL-06.',type:'success'});
+    }catch(e){
+      setToast({message:'Erro ao gerar memorial: '+e.message,type:'error'});
+    }finally{
+      setGeneratingMemorial(false);
+    }
+  };
+
+  const gerarSemIA=()=>{
+    const template=buildMemorialTemplate(fd,calc)
+      .replace(/\[\[\[IA_NARRATIVA_SEC1\]\]\]/g,
+        `Este Memorial Técnico-Descritivo tem como objetivo apresentar as informações técnicas necessárias para a solicitação de acesso à rede de distribuição da CEEE Equatorial para o sistema de ${calc.enq} fotovoltaica de ${calc.kWp} kWp, a ser instalado na Unidade Consumidora de titularidade de ${fd.nomeCliente||'[INSERIR NOME]'}, conforme os requisitos estabelecidos pela Lei Federal n° 14.300/2022 e REN ANEEL n° 1.000/2021.
+
+O projeto foi elaborado pela empresa ${fd.nomeEmpresa||'Instalight Energia Solar'} e o Responsável Técnico é o(a) engenheiro(a) ${fd.nomeResponsavel||'[INSERIR RT]'}, inscrito(a) no CRT/CREA sob n° ${fd.numeroCRT||'[INSERIR]'}, que assume integral responsabilidade técnica pelo projeto e execução da instalação, conforme documentação de responsabilidade técnica junto ao conselho profissional competente.`)
+      .replace(/\[\[\[IA_NARRATIVA_SEC7\]\]\]/g,
+        `Os módulos fotovoltaicos serão instalados sobre estrutura de suporte em alumínio anodizado com tratamento anti-corrosão, fixada sobre cobertura do tipo ${fd.tipoTelhado}. O sistema de fixação foi dimensionado para suportar cargas de vento de até 180 km/h conforme ABNT NBR 6118.
+
+Serão utilizados perfis de alumínio anodizado de alta resistência com conectores e grampos em aço inoxidável AISI 304, garantindo durabilidade mínima de 25 anos sem necessidade de pintura ou tratamento superficial adicional.`)
+      .replace(/\[\[\[IA_NARRATIVA_SEC10\]\]\]/g,
+        `A implantação do sistema fotovoltaico de ${calc.kWp} kWp contribuirá para a redução das emissões de gases de efeito estufa decorrentes da geração convencional de energia, estimando-se uma redução de ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg de CO₂ por ano, equivalente ao plantio de ${calc.arvoresEquivalente.toLocaleString('pt-BR')} árvores anuais e a ${calc.co2Em25Anos.toLocaleString('pt-BR')} kg de CO₂ ao longo de 25 anos de vida útil do sistema.
+
+O sistema conectado à rede (On Grid) permite ainda a injeção do excedente de energia na rede de distribuição, gerando créditos de energia conforme o sistema de compensação previsto na Lei Federal n° 14.300/2022, maximizando o aproveitamento da fonte solar e a eficiência energética da instalação.`)
+      .replace(/\[\[\[IA_NARRATIVA_SEC12\]\]\]/g,
+        `O comissionamento do sistema fotovoltaico deve ser realizado por profissional habilitado e autorizado em instalações elétricas conforme NR-10, com o objetivo de verificar a conformidade da instalação com o projeto aprovado, identificar eventuais anomalias e garantir a segurança e o desempenho do sistema antes da energização definitiva.
+
+Todos os resultados dos testes e ensaios deverão ser registrados em relatório técnico, assinado pelo responsável técnico, e arquivados na instalação para consulta durante a vida útil do sistema.`);
+    setMemorialIA(template);
+    setDocsGerados(p=>({...p,memorial:true}));
+    setToast({message:'Memorial gerado (modo básico — sem IA). Use "Gerar com IA" para narrativas aprimoradas.',type:'info'});
+  };
+
+  const exportPDF=()=>{
+    const doc=makePDF('p','a4');
+    const W=doc.internal.pageSize.getWidth();
+    pdfHeader(doc,fd);
+    doc.setFontSize(13);doc.setFont('helvetica','bold');
+    doc.text('MEMORIAL TÉCNICO-DESCRITIVO',W/2,35,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100);
+    doc.text(`${calc.enq} | ${calc.kWp} kWp | ${fd.tipoLigacao} | Conforme NT.00020.EQTL-06`,W/2,42,{align:'center'});
+    doc.setTextColor(30);
+    if(memorialIA){
+      addTextBlock(doc,memorialIA,12,12,50,5);
+    }else{
+      doc.setTextColor(150);doc.text('Gere o memorial primeiro.',14,55);
+    }
+    pdfFooter(doc,fd,1,1);
+    doc.save(`memorial_${fd.nomeCliente||'instalight'}.pdf`);
+  };
+
+  const secoes=memorialIA?[
+    {id:'Siglas',label:'Lista de Siglas',icon:'📑',tipo:'js'},
+    {id:'1',label:'1. Objetivo',icon:'🎯',tipo:'ia'},
+    {id:'2',label:'2. Referências Normativas',icon:'📋',tipo:'js'},
+    {id:'3',label:'3. Dados da UC',icon:'🏠',tipo:'js'},
+    {id:'4',label:'4. Padrão de Entrada',icon:'⚡',tipo:'js'},
+    {id:'5',label:'5. Dimensionamento do Gerador',icon:'☀️',tipo:'js'},
+    {id:'6',label:'6. Dimensionamento do Inversor',icon:'🔄',tipo:'js'},
+    {id:'7',label:'7. Estrutura de Fixação',icon:'🏗️',tipo:'ia'},
+    {id:'8',label:'8. Proteções',icon:'🛡️',tipo:'js'},
+    {id:'9',label:'9. Dimensionamento de Cabos',icon:'🔌',tipo:'js'},
+    {id:'10',label:'10. Geração e Impacto Ambiental',icon:'🌱',tipo:'ia'},
+    {id:'11',label:'11. Placas e Identificações',icon:'⚠️',tipo:'js'},
+    {id:'12',label:'12. Comissionamento',icon:'🔬',tipo:'ia'},
+    {id:'13',label:'13. Exploração e Manutenção',icon:'🔧',tipo:'js'},
+    {id:'14',label:'14. Notas NR-10',icon:'⛑️',tipo:'js'},
+    {id:'15',label:'15. Normas Adotadas',icon:'📖',tipo:'js'},
+  ]:[];
+
+  return(
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-white">
+        <div>
+          <h2 className="font-semibold text-slate-800">Memorial Técnico-Descritivo Profissional</h2>
+          <p className="text-xs text-slate-500">15 seções • NT.00020.EQTL-06 (CEEE Equatorial) • 80% JS + 20% IA</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={gerarSemIA}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50">
+            Modo Básico
+          </button>
+          <button
+            onClick={gerarMemorial}
+            disabled={generatingMemorial||!apiKey}
+            className="px-4 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+          >
+            {generatingMemorial?(<><span className="spinner"/><span>Gerando…</span></>):'✍️ Gerar com IA'}
+          </button>
+          {memorialIA&&(
+            <button onClick={exportPDF} className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50">
+              Exportar PDF
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Índice lateral de seções */}
+        {secoes.length>0&&(
+          <div className="w-48 flex-shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto p-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">Seções</p>
+            {secoes.map(s=>(
+              <a key={s.id} href={`#sec-memorial-${s.id}`}
+                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-slate-600 hover:bg-orange-50 hover:text-orange-600 mb-0.5">
+                <span>{s.icon}</span>
+                <span className="truncate">{s.label}</span>
+                <span className={`ml-auto flex-shrink-0 w-1.5 h-1.5 rounded-full ${s.tipo==='ia'?'bg-orange-400':'bg-green-400'}`}/>
+              </a>
+            ))}
+            <div className="mt-3 px-2 space-y-1 text-xs text-slate-400">
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block"/><span>Calculado (JS)</span></div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/><span>Gerado (IA)</span></div>
+            </div>
+          </div>
+        )}
+        <div className="flex-1 overflow-auto p-4">
+          {!memorialIA&&!generatingMemorial&&(
+            <div className="text-center py-16 text-slate-400">
+              <div className="text-5xl mb-4">📐</div>
+              <p className="font-medium text-slate-600 mb-1">Memorial Técnico-Descritivo Profissional</p>
+              <p className="text-sm mb-2">15 seções • Baseado em projetos reais aprovados pela CEEE Equatorial</p>
+              <p className="text-xs text-slate-400 mb-6">Estrutura conforme NT.00020.EQTL-06 + FUNREBOM + NBR 16690</p>
+              <div className="flex gap-3 justify-center">
+                <button onClick={gerarSemIA} className="px-4 py-2 text-sm font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50">
+                  Modo Básico (sem IA)
+                </button>
+                <button onClick={gerarMemorial} disabled={!apiKey}
+                  className="px-4 py-2 text-sm font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50">
+                  ✍️ Gerar com IA {!apiKey&&'(API Key necessária)'}
+                </button>
+              </div>
+            </div>
+          )}
+          {generatingMemorial&&(
+            <div className="text-center py-16 text-slate-400">
+              <div className="spinner mx-auto mb-4" style={{width:48,height:48,borderWidth:4}}/>
+              <p className="font-medium text-slate-600 mb-1">Gerando memorial profissional…</p>
+              <p className="text-sm">A IA está redigindo as seções narrativas. Aguarde ~20s.</p>
+            </div>
+          )}
+          {memorialIA&&(
+            <div className="max-w-3xl mx-auto">
+              <div className="doc-preview" id="memorial-content">{memorialIA}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Aba Documentos ─────────────────────────────────────────────────────────
+const DocumentosTab=({fd,calc,apiKey,setToast,docsGerados,setDocsGerados})=>{
+  const [procuracao,setProcuracao]=useState('');
+  const [refiningProc,setRefiningProc]=useState(false);
+  const [activeDoc,setActiveDoc]=useState('procuracao');
+
+  const gerarProcuracao=()=>{
+    const hoje=fd.dataproject||new Date().toLocaleDateString('pt-BR');
+    const tipoPessoa=fd.tipoPessoa==='fisica'?
+      `${fd.nomeCliente||'___'}, CPF nº ${fd.cpfCnpj||'___'}, residente e domiciliado(a) em ${fd.endereco||'___'}`:
+      `${fd.nomeCliente||'___'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cpfCnpj||'___'}, com sede em ${fd.endereco||'___'}`;
+
+    const txt=`PROCURAÇÃO ESPECÍFICA
+
+${fd.cidade||'Porto Alegre'}, ${hoje}.
+
+OUTORGANTE: ${tipoPessoa}, titular da Unidade Consumidora (UC) de código ${fd.codigoUC||'___'}, área de concessão da CEEE Equatorial.
+
+OUTORGADO: ${fd.nomeEmpresa||'Instalight Energia Solar'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cnpjEmpresa||'___'}, com endereço em ${fd.enderecoEmpresa||'Porto Alegre, RS'}.
+
+Por meio deste instrumento particular, o OUTORGANTE nomeia e constitui o OUTORGADO como seu bastante procurador, conferindo-lhe poderes específicos para:
+
+I. Protocolar, instruir, assinar e acompanhar junto à CEEE Equatorial o processo de solicitação de acesso à rede de distribuição para implantação de sistema de ${calc.enq} fotovoltaica, nos termos do Art. 9° da Resolução Normativa ANEEL n° 1.000/2021 e da Lei Federal n° 14.300/2022;
+
+II. Assinar formulários, declarações e demais documentos necessários à aprovação do sistema fotovoltaico de ${calc.kWp}kWp (${num(fd.numeroPaineis)||'—'} módulos de ${fd.potenciaUnitariaWp||'—'}Wp, inversor ${fd.modeloInversor||'—'}) na referida Unidade Consumidora;
+
+III. Retirar protocolos, acompanhar o andamento do processo e praticar todos os atos necessários ao pleno cumprimento do objeto desta procuração.
+
+Esta procuração é outorgada com poderes para um único ato e somente para os fins acima especificados, vedada a substabelecimento.
+
+_______________________________
+${fd.nomeCliente||'OUTORGANTE'}
+${fd.tipoPessoa==='fisica'?'CPF':'CNPJ'}: ${fd.cpfCnpj||'___'}
+
+Reconhecimento de firma: _______________________________ (Cartório)
+
+NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
+    setProcuracao(txt);
+    setDocsGerados(p=>({...p,procuracao:true}));
+  };
+
+  const refinarProcuracao=async()=>{
+    if(!apiKey){setToast({message:'Informe a API Key.',type:'error'});return;}
+    if(!procuracao){setToast({message:'Gere a procuração primeiro.',type:'error'});return;}
+    setRefiningProc(true);
+    try{
+      const res=await callAPI(apiKey,
+        'Você é um advogado especialista em direito energético e documentos jurídicos. Refine a linguagem do texto mantendo todas as informações, tornando-o mais formal e juridicamente adequado.',
+        [{role:'user',content:`Refine a linguagem jurídica desta procuração, mantendo todos os dados e informações:\n\n${procuracao}`}],
+        2000
+      );
+      setProcuracao(res.content[0].text);
+      setToast({message:'Linguagem refinada com sucesso!',type:'success'});
+    }catch(e){
+      setToast({message:'Erro ao refinar: '+e.message,type:'error'});
+    }finally{
+      setRefiningProc(false);
+    }
+  };
+
+  const exportProcuracaoPDF=()=>{
+    const doc=makePDF('p','a4');
+    pdfHeader(doc,fd);
+    doc.setFontSize(14);doc.setFont('helvetica','bold');
+    doc.text('PROCURAÇÃO ESPECÍFICA',doc.internal.pageSize.getWidth()/2,35,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');
+    doc.text('Art. 9° — REN ANEEL n° 1.000/2021',doc.internal.pageSize.getWidth()/2,42,{align:'center'});
+    addTextBlock(doc,procuracao,14,14,52,5.5);
+    pdfFooter(doc,fd,1,1);
+    doc.save(`procuracao_${fd.nomeCliente||'instalight'}.pdf`);
+  };
+
+  const exportFormularioPDF=()=>{
+    const doc=makePDF('p','a4');
+    const W=doc.internal.pageSize.getWidth();
+    pdfHeader(doc,fd);
+
+    doc.setFontSize(13);doc.setFont('helvetica','bold');
+    doc.text('FORMULÁRIO DE SOLICITAÇÃO DE ACESSO',W/2,35,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');
+    doc.text('Micro/Minigeração Distribuída — CEEE Equatorial',W/2,42,{align:'center'});
+
+    let y=52;
+    const linha=(label,valor)=>{
+      doc.setFont('helvetica','bold');doc.setFontSize(9);
+      doc.text(label+':',14,y);
+      doc.setFont('helvetica','normal');
+      doc.text(valor||'—',80,y);
+      doc.setDrawColor(220);doc.line(14,y+2,W-14,y+2);
+      y+=10;
+    };
+
+    doc.setFont('helvetica','bold');doc.setFontSize(10);
+    doc.text('DADOS DO TITULAR',14,y);y+=8;
+    linha('Nome/Razão Social',fd.nomeCliente);
+    linha('CPF/CNPJ',fd.cpfCnpj);
+    linha('Endereço da UC',fd.endereco);
+    linha('Código UC',fd.codigoUC);
+    linha('Nº Fatura',fd.numeroFatura);
+
+    y+=4;doc.setFont('helvetica','bold');doc.setFontSize(10);
+    doc.text('DADOS DO SISTEMA',14,y);y+=8;
+    linha('Tipo de Geração',calc.enq);
+    linha('Potência CC instalada',`${calc.kWp} kWp`);
+    linha('Potência CA nominal',`${calc.kWtCA} kW`);
+    linha('Tipo de Ligação',fd.tipoLigacao);
+    linha('Módulos FV',`${fd.numeroPaineis||'—'}× ${fd.modeloPainel||'—'} ${fd.potenciaUnitariaWp||'—'}Wp`);
+    linha('Inversor',`${fd.modeloInversor||'—'}`);
+    linha('Responsável Técnico',fd.nomeResponsavel);
+    linha('CRT/CREA',fd.numeroCRT);
+
+    y+=6;doc.setFontSize(7);doc.setTextColor(120);
+    doc.text('⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',14,y);
+    doc.setTextColor(30);
+
+    pdfFooter(doc,fd,1,1);
+    doc.save(`formulario_ceee_${fd.nomeCliente||'instalight'}.pdf`);
+    setDocsGerados(p=>({...p,formularioCEEE:true}));
+  };
+
+  const formCEEEPreview=`DADOS DO TITULAR
+Nome/Razão Social: ${fd.nomeCliente||'—'}
+CPF/CNPJ: ${fd.cpfCnpj||'—'}
+Endereço da UC: ${fd.endereco||'—'}
+Código UC: ${fd.codigoUC||'—'}
+Nº Fatura: ${fd.numeroFatura||'—'}
+
+DADOS DO SISTEMA
+Tipo de Geração: ${calc.enq}
+Potência CC instalada: ${calc.kWp} kWp
+Potência CA nominal: ${calc.kWtCA} kW
+Tipo de Ligação: ${fd.tipoLigacao}
+Módulos FV: ${fd.numeroPaineis||'—'}× ${fd.modeloPainel||'—'} ${fd.potenciaUnitariaWp||'—'}Wp
+Inversor: ${fd.modeloInversor||'—'} (${fd.quantidadeInversores||1}× ${fd.potenciaCAkW||'—'}kW)
+Configuração: ${fd.paineisSerie||'—'} série × ${fd.stringParalelo||'—'} paralelo
+Responsável Técnico: ${fd.nomeResponsavel||'—'}
+CRT/CREA: ${fd.numeroCRT||'—'}`;
+
+  return(
+    <div className="flex flex-col h-full">
+      <div className="border-b border-slate-200 bg-white px-3 pt-3">
+        <div className="flex gap-3 mb-3">
+          <button
+            onClick={()=>setActiveDoc('procuracao')}
+            className={`px-3 py-1 text-xs font-semibold rounded-t ${activeDoc==='procuracao'?'bg-orange-500 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+          >
+            A1 — Procuração Específica
+          </button>
+          <button
+            onClick={()=>setActiveDoc('formulario')}
+            className={`px-3 py-1 text-xs font-semibold rounded-t ${activeDoc==='formulario'?'bg-orange-500 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+          >
+            A2 — Formulário CEEE
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-4">
+        {activeDoc==='procuracao'&&(
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-slate-800">Procuração Específica</h3>
+                <p className="text-xs text-slate-500">Art. 9° da REN ANEEL n° 1.000/2021</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={gerarProcuracao} className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600">
+                  Gerar / Atualizar
+                </button>
+                {procuracao&&(<>
+                  <button onClick={refinarProcuracao} disabled={refiningProc||!apiKey}
+                    className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1">
+                    {refiningProc?<><span className="spinner"/><span>Refinando…</span></>:'✨ Refinar com IA'}
+                  </button>
+                  <button onClick={exportProcuracaoPDF} className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50">
+                    Exportar PDF
+                  </button>
+                </>)}
+              </div>
+            </div>
+            {procuracao?(
+              <div className="doc-preview">{procuracao}</div>
+            ):(
+              <div className="text-center py-12 text-slate-400">
+                <div className="text-4xl mb-3">📜</div>
+                <p className="text-sm">Clique em "Gerar / Atualizar" para criar a procuração</p>
+              </div>
+            )}
+          </div>
+        )}
+        {activeDoc==='formulario'&&(
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-slate-800">Formulário de Solicitação de Acesso CEEE</h3>
+                <p className="text-xs text-slate-500">Preenchido automaticamente com os dados do formulário</p>
+              </div>
+              <button onClick={exportFormularioPDF} className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600">
+                Exportar PDF
+              </button>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+              ⚠️ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.
+            </div>
+            <div className="doc-preview">{formCEEEPreview}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Aba Resumo ─────────────────────────────────────────────────────────────
+const ResumoTab=({fd,calc,docsGerados,setToast})=>{
+  const cards=[
+    {label:'Potência CC',value:`${calc.kWp} kWp`,icon:'☀️',color:'orange'},
+    {label:'Potência CA total',value:`${calc.kWtCA} kW`,icon:'⚡',color:'blue'},
+    {label:'Enquadramento',value:calc.enq,icon:'📋',color:'green'},
+    {label:'Geração anual est.',value:`${calc.geracaoAnual.toLocaleString('pt-BR')} kWh`,icon:'📊',color:'purple'},
+    {label:'Prazo análise CEEE',value:calc.prazo,icon:'⏱️',color:'slate'},
+    {label:'Economia anual est.',value:`R$ ${calc.economiaAnual.toLocaleString('pt-BR')}`,icon:'💰',color:'emerald'},
+    {label:'CO₂ evitado/ano',value:`${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg`,icon:'🌿',color:'teal'},
+    {label:'Árvores equiv./ano',value:`${calc.arvoresEquivalente} árvores`,icon:'🌳',color:'lime'},
+  ];
+
+  const colorMap={orange:'bg-orange-50 border-orange-200 text-orange-700',blue:'bg-blue-50 border-blue-200 text-blue-700',
+    green:'bg-green-50 border-green-200 text-green-700',purple:'bg-purple-50 border-purple-200 text-purple-700',
+    slate:'bg-slate-50 border-slate-200 text-slate-700',emerald:'bg-emerald-50 border-emerald-200 text-emerald-700',
+    teal:'bg-teal-50 border-teal-200 text-teal-700',lime:'bg-lime-50 border-lime-200 text-lime-700'};
+
+  const groupA=[
+    {id:'A1',doc:'Procuração Específica',gerado:docsGerados.procuracao,como:'Gere na aba "Documentos" e peça ao cliente assinar com firma reconhecida'},
+    {id:'A2',doc:'Formulário de Acesso CEEE',gerado:docsGerados.formularioCEEE,como:'Gere na aba "Documentos" e leve ao protocolo CEEE'},
+    {id:'A3',doc:'Documentos pessoais (RG+CPF / CNPJ+Contrato Social)',gerado:false,como:fd.tipoPessoa==='fisica'?'Solicitar cópia do RG e CPF do titular':'Solicitar CNPJ, Contrato Social e documento do representante'},
+    {id:'A4',doc:'Fatura de energia recente',gerado:false,como:'Solicitar fatura dos últimos 3 meses'},
+  ];
+
+  const groupB=[
+    {id:'B1',doc:'Diagrama Unifilar',gerado:true,como:'Disponível na aba "Diagramas" — exportar SVG ou PDF'},
+    {id:'B2',doc:'Diagrama Pluri (Bi/Trifilar)',gerado:true,como:'Incluído na mesma prancha da aba "Diagramas"'},
+    {id:'B3',doc:'Planta de Situação / Locação',gerado:false,como:'Providenciar foto aérea ou print do Google Maps com escala'},
+    {id:'B4',doc:'Memorial Técnico-Descritivo',gerado:docsGerados.memorial,como:'Gere na aba "Memorial" e valide com o RT'},
+    {id:'B5',doc:'TRT/ART (Responsabilidade Técnica)',gerado:false,como:'RT deve assinar a ART no sistema do CREA/CFT'},
+    {id:'B6',doc:'Data Sheets dos equipamentos',gerado:false,como:'Baixar do site do fabricante e incluir no dossiê'},
+  ];
+
+  const exportPendencias=()=>{
+    const doc=makePDF('p','a4');
+    const W=doc.internal.pageSize.getWidth();
+    pdfHeader(doc,fd);
+    doc.setFontSize(13);doc.setFont('helvetica','bold');
+    doc.text('RELATÓRIO DE PENDÊNCIAS — PROTOCOLO CEEE',W/2,35,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');
+    doc.text(`Cliente: ${fd.nomeCliente||'—'} | UC: ${fd.codigoUC||'—'} | Sistema: ${calc.kWp}kWp`,W/2,43,{align:'center'});
+
+    let y=54;
+    const sect=(title)=>{
+      y+=4;doc.setFont('helvetica','bold');doc.setFontSize(10);
+      doc.setFillColor(249,115,22);doc.rect(14,y-5,W-28,8,'F');
+      doc.setTextColor(255);doc.text(title,16,y);
+      doc.setTextColor(30);doc.setFont('helvetica','normal');doc.setFontSize(9);
+      y+=8;
+    };
+    const item=(id,dname,done,como)=>{
+      const status=done?'✅ GERADO':'⏳ PENDENTE';
+      doc.setFont('helvetica','bold');
+      doc.text(`${id} — ${dname}`,14,y);y+=5;
+      doc.setFont('helvetica','normal');doc.setTextColor(done?34:180,done?139:100,done?34:0);
+      doc.text(status,14,y);doc.setTextColor(30);
+      if(!done){doc.setTextColor(80);doc.text(`  Como obter: ${como}`,14,y+5);y+=5;}
+      y+=9;if(y>H-20){doc.addPage();pdfHeader(doc,fd);y=35;}
+    };
+    const H=doc.internal.pageSize.getHeight();
+
+    sect('GRUPO A — DOCUMENTOS DO CLIENTE');
+    groupA.forEach(g=>item(g.id,g.doc,g.gerado,g.como));
+    sect('GRUPO B — DOCUMENTOS TÉCNICOS');
+    groupB.forEach(g=>item(g.id,g.doc,g.gerado,g.como));
+
+    y+=4;doc.setFontSize(8);doc.setTextColor(100);
+    doc.text('Dúvidas? Entre em contato com a Instalight.',14,y);
+
+    pdfFooter(doc,fd,1,1);
+    doc.save(`pendencias_${fd.nomeCliente||'instalight'}.pdf`);
+    setToast({message:'Relatório de pendências exportado!',type:'success'});
+  };
+
+  const CheckItem=({id,doc,gerado,como})=>(
+    <div className={`flex items-start gap-3 p-3 rounded-lg border ${gerado?'bg-green-50 border-green-200':'bg-slate-50 border-slate-200'}`}>
+      <span className="text-lg flex-shrink-0">{gerado?'✅':'⏳'}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-500">{id}</span>
+          <span className={`text-sm font-medium ${gerado?'text-green-700':'text-slate-700'}`}>{doc}</span>
+        </div>
+        {!gerado&&<p className="text-xs text-slate-500 mt-0.5">{como}</p>}
+        {gerado&&<p className="text-xs text-green-600 mt-0.5">Gerado pelo app</p>}
+      </div>
+    </div>
+  );
+
+  return(
+    <div className="flex flex-col h-full overflow-auto">
+      <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-800">Resumo do Projeto + Checklist de Protocolo</h2>
+          <p className="text-xs text-slate-500">Acompanhe o status de todos os documentos necessários</p>
+        </div>
+        <button onClick={exportPendencias} className="px-4 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600">
+          📄 Gerar PDF de Pendências
+        </button>
+      </div>
+      <div className="flex-1 p-4 space-y-6">
+        {/* Cards */}
+        <div className="grid grid-cols-3 gap-3">
+          {cards.map(c=>(
+            <div key={c.label} className={`rounded-lg border p-3 ${colorMap[c.color]}`}>
+              <div className="text-xl mb-1">{c.icon}</div>
+              <div className="text-xs opacity-70 mb-0.5">{c.label}</div>
+              <div className="font-bold text-sm">{c.value}</div>
+            </div>
+          ))}
+        </div>
+        {/* Checklist A */}
+        <div>
+          <h3 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">
+            <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded">GRUPO A</span>
+            Documentos do Cliente
+          </h3>
+          <div className="space-y-2">
+            {groupA.map(g=><CheckItem key={g.id} {...g}/>)}
+          </div>
+        </div>
+        {/* Checklist B */}
+        <div>
+          <h3 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">
+            <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">GRUPO B</span>
+            Documentos Técnicos
+          </h3>
+          <div className="space-y-2">
+            {groupB.map(g=><CheckItem key={g.id} {...g}/>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── App principal ──────────────────────────────────────────────────────────
+const App=()=>{
+  const [formData,setFormData]=useState(INITIAL_FORM);
+  const [apiKey,setApiKey]=useState(()=>localStorage.getItem(LS_KEY)||'');
+  const [activeTab,setActiveTab]=useState('diagramas');
+  const [memorialIA,setMemorialIA]=useState('');
+  const [generatingMemorial,setGeneratingMemorial]=useState(false);
+  const [docsGerados,setDocsGerados]=useState({memorial:false,procuracao:false,formularioCEEE:false});
+  const [uploadedFiles,setUploadedFiles]=useState([]);
+  const [extractingData,setExtractingData]=useState(false);
+  const [aiFilledFields,setAiFilledFields]=useState(new Set());
+  const [toast,setToast]=useState(null);
+  const svgRef=useRef();
+
+  const calc=useMemo(()=>calcularSistema(formData),[formData]);
+
+  useEffect(()=>{
+    if(apiKey)localStorage.setItem(LS_KEY,apiKey);
+  },[apiKey]);
+
+  useEffect(()=>{
+    if(toast){const t=setTimeout(()=>setToast(null),4000);return()=>clearTimeout(t);}
+  },[toast]);
+
+  const onChange=useCallback(e=>{
+    const {name,value}=e.target;
+    setFormData(p=>({...p,[name]:value}));
+  },[]);
+
+  const onExtract=useCallback((json)=>{
+    const filled=new Set();
+    const updates={};
+    Object.entries(json).forEach(([k,v])=>{
+      if(v!==null&&v!==''&&v!==undefined&&k!=='confiancaExtracao'&&k!=='camposNaoEncontrados'&&k!=='observacoes'&&k in INITIAL_FORM){
+        updates[k]=String(v);
+        filled.add(k);
+      }
+    });
+    setFormData(p=>({...p,...updates}));
+    setAiFilledFields(filled);
+    const conf=json.confiancaExtracao||'média';
+    setToast({
+      message:`Dados extraídos! ${filled.size} campos preenchidos (confiança: ${conf})${conf==='baixa'?' — revise os dados':''}.`,
+      type:conf==='baixa'?'warning':'success'
+    });
+  },[]);
+
+  const exportarTudo=async()=>{
+    setToast({message:'Exportando todos os documentos…',type:'info'});
+    const delay=ms=>new Promise(r=>setTimeout(r,ms));
+    // 1 — Prancha SVG
+    if(svgRef.current){
+      const s=new XMLSerializer().serializeToString(svgRef.current);
+      const b=new Blob([s],{type:'image/svg+xml'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(b);
+      a.download=`prancha_${formData.nomeCliente||'instalight'}.svg`;a.click();
+      await delay(400);
+    }
+    // 2 — Memorial PDF
+    exportarMemorialPDFStandalone(formData,calc,memorialIA);
+    await delay(400);
+    // 3 — Procuração PDF
+    exportarProcuracaoPDFStandalone(formData,calc);
+    await delay(400);
+    // 4 — Formulário CEEE PDF
+    exportarFormularioPDFStandalone(formData,calc);
+    await delay(400);
+    // 5 — Pendências PDF
+    exportarPendenciasPDFStandalone(formData,calc,docsGerados);
+    await delay(200);
+    setToast({message:'✅ 5 documentos exportados (SVG + 4 PDFs)!',type:'success'});
+  };
+
+  const tabs=[
+    {id:'diagramas',label:'Diagramas',icon:'📐'},
+    {id:'memorial',label:'Memorial',icon:'📋'},
+    {id:'documentos',label:'Documentos',icon:'📜'},
+    {id:'resumo',label:'Resumo',icon:'✅'},
+  ];
+
+  const toastColors={success:'bg-green-700',error:'bg-red-700',warning:'bg-amber-600',info:'bg-blue-700'};
+
+  return(
+    <div className="flex flex-col h-screen bg-slate-100">
+      {/* Header */}
+      <header className="h-14 bg-gray-900 flex items-center px-4 gap-4 flex-shrink-0 border-b border-gray-800">
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">☀</div>
+          <div>
+            <div className="text-white font-bold text-sm leading-none">GD Docs</div>
+            <div className="text-orange-400 text-xs leading-none">Instalight</div>
+          </div>
+        </div>
+        {/* Tabs */}
+        <div className="flex gap-1 ml-4">
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setActiveTab(t.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${activeTab===t.id?'bg-orange-500 text-white':'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Spacer */}
+        <div className="flex-1"/>
+        {/* API Key */}
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-xs">🔑</span>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={e=>setApiKey(e.target.value)}
+            placeholder="Anthropic API Key"
+            className="bg-gray-800 text-gray-200 text-xs px-3 py-1.5 rounded border border-gray-700 outline-none focus:border-orange-500 w-56"
+          />
+        </div>
+        {/* Export all */}
+        <button onClick={exportarTudo} className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-1">
+          ⬇ Exportar Tudo
+        </button>
+      </header>
+
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          fd={formData}
+          onChange={onChange}
+          calc={calc}
+          apiKey={apiKey}
+          onExtract={onExtract}
+          uploadedFiles={uploadedFiles}
+          setUploadedFiles={setUploadedFiles}
+          extractingData={extractingData}
+          setExtractingData={setExtractingData}
+          aiFilledFields={aiFilledFields}
+        />
+        <main className="flex-1 overflow-hidden flex flex-col">
+          {activeTab==='diagramas'&&<DiagramasTab fd={formData} calc={calc} svgRef={svgRef}/>}
+          {activeTab==='memorial'&&(
+            <MemorialTab
+              fd={formData} calc={calc} apiKey={apiKey}
+              memorialIA={memorialIA} setMemorialIA={setMemorialIA}
+              generatingMemorial={generatingMemorial} setGeneratingMemorial={setGeneratingMemorial}
+              setToast={setToast} setDocsGerados={setDocsGerados}
+            />
+          )}
+          {activeTab==='documentos'&&(
+            <DocumentosTab
+              fd={formData} calc={calc} apiKey={apiKey}
+              setToast={setToast} docsGerados={docsGerados} setDocsGerados={setDocsGerados}
+            />
+          )}
+          {activeTab==='resumo'&&(
+            <ResumoTab fd={formData} calc={calc} docsGerados={docsGerados} setToast={setToast}/>
+          )}
+        </main>
+      </div>
+
+      {/* Toast */}
+      {toast&&(
+        <div className={`toast text-white text-sm ${toastColors[toast.type]||'bg-gray-800'}`}>
+          {toast.message}
+        </div>
+      )}
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
