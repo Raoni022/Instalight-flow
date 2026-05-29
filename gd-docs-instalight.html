@@ -31,8 +31,21 @@ const {useState,useEffect,useRef,useMemo,useCallback}=React;
 const {jsPDF}=window.jspdf;
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const VOC_PP=41,RHO=0.01724,IRRAD=4.8,PR=0.75,TARIFA=0.85;
-const API_URL='https://api.anthropic.com/v1/messages';
+// ── Constantes técnicas ────────────────────────────────────────────────────
+// VOC_PP: Voc típico por painel (V) — substitua pelo valor real do datasheet
+// RHO: resistividade Cu 20°C (Ω·mm²/m) — ABNT NBR 5410
+// IRRAD: HSP média Porto Alegre (kWh/m²/dia) — CRESESB/Atlas Solarimétrico RS
+// PR: Performance Ratio médio (adimensional) — inclui perdas térmicas, cabos, inv.
+// TARIFA: R$/kWh RS médio — apenas para estimativa de economia (não regulatório)
+// CO2_FACTOR: fator emissão SIN 2023 (kgCO₂eq/kWh) — Inventário GHG ANEEL 2023
+//   Nota: valor conservador. Fator oficial ANEEL 2023 = ~0,0783 kgCO₂eq/kWh
+//   Usando 0,09 como média ajustada (precisa validação anual com ANEEL)
+const VOC_PP=41,RHO=0.01724,IRRAD=4.8,PR=0.75,TARIFA=0.85,CO2_FACTOR=0.09;
+// Detecção de ambiente:
+// - IS_PROD=true  → Vercel/https: usa proxy /api/claude (chave no servidor)
+// - IS_PROD=false → localhost/file://: usa API direta com chave inserida pelo usuário
+const IS_PROD=window.location.protocol==='https:'&&!window.location.hostname.includes('localhost');
+const API_URL=IS_PROD?'/api/claude':'https://api.anthropic.com/v1/messages';
 const MODEL='claude-sonnet-4-6';
 const LS_KEY='instalight_api_key';
 
@@ -49,7 +62,7 @@ const INITIAL_FORM={
   secaoCaboCA:'6',comprimentoCabosCA:'',
   secaoCaboAterr:'6',
   dpsCCTipo:'Tipo 2',dpsCCTensao:'1000',
-  dpsCAipo:'Tipo 2',dpsCATensao:'275',
+  dpsCATipo:'Tipo 2',dpsCATensao:'275',
   disjuntorCC:'',disjuntorCA:'',
   aterramento:'Haste 5/8"',
   tipoTelhado:'Cerâmico',coordenadas:'',
@@ -76,7 +89,13 @@ const calcularSistema=(fd)=>{
   const iccTot=iscStr*npar;
   const iccN=iccTot*1.25;
   const tca=220;
-  const faseF=fd.tipoLigacao==='Trifásico'?Math.sqrt(3):1;
+  // faseF: fator de fase para cálculo de corrente CA
+  //   Monofásico: P = V × I → faseF = 1
+  //   Bifásico:   P = 2 × V × I (220V por fase) → faseF = 2
+  //   Trifásico:  P = √3 × V × I (tensão de linha 220V no RS) → faseF = √3
+  // ATENÇÃO: para bifásico, faseF=2 divide a corrente entre as 2 fases.
+  // Se o inversor bifásico usa apenas 1 saída, use faseF=1. Validar com RT.
+  const faseF=fd.tipoLigacao==='Trifásico'?Math.sqrt(3):fd.tipoLigacao==='Bifásico'?2:1;
   const iNomCA=kWtCA>0?(kWtCA*1000)/(tca*faseF):0;
   const iDimCA=iNomCA*1.25;
   const dvccV=scc>0?(2*lcc*iccN*RHO)/scc:0;
@@ -91,8 +110,10 @@ const calcularSistema=(fd)=>{
   const djCA=num(fd.disjuntorCA,50);
   const potDispKVA=+(( tca*djCA*faseF)/1000).toFixed(2);
   const potDispKW=+(potDispKVA*0.92).toFixed(2);
-  // Impacto ambiental CO2 (fator SIN 0.10 kgCO2/kWh)
-  const co2EvitadoAnual=Math.round(geracaoAnual*0.10);
+  // Impacto ambiental CO₂ — fator SIN ANEEL 2023 (~0,0783 kgCO₂eq/kWh)
+  // Usando CO2_FACTOR=0.09 como valor conservador aproximado
+  // ATENÇÃO: validar anualmente com publicação oficial ANEEL (Inventário GHG)
+  const co2EvitadoAnual=Math.round(geracaoAnual*CO2_FACTOR);
   const arvoresEquivalente=Math.round(co2EvitadoAnual/25);
   const co2Em25Anos=co2EvitadoAnual*25;
   const consumoMensalKwh=num(fd.consumoMensalKwh,0);
@@ -109,6 +130,145 @@ const calcularSistema=(fd)=>{
     potDispKVA,potDispKW,
     co2EvitadoAnual,arvoresEquivalente,co2Em25Anos,percentualAtendimento,
   };
+};
+
+// ── Validação técnica do projeto ──────────────────────────────────────────
+// Retorna array de { nivel: 'erro'|'aviso'|'info', codigo, msg }
+// Erros bloqueiam exportação. Avisos pedem confirmação. Infos são educativos.
+const validarProjeto=(fd,calc)=>{
+  const issues=[];
+  const e=(cod,msg)=>issues.push({nivel:'erro',cod,msg});
+  const w=(cod,msg)=>issues.push({nivel:'aviso',cod,msg});
+  const i=(cod,msg)=>issues.push({nivel:'info',cod,msg});
+
+  // ── Dados obrigatórios do projeto ──────────────────────────────────────
+  if(!fd.nomeCliente?.trim())        e('UC01','Nome do cliente não preenchido.');
+  if(!fd.codigoUC?.trim())           e('UC02','Código da UC não preenchido.');
+  if(!fd.endereco?.trim())           e('UC03','Endereço da UC não preenchido.');
+  if(!fd.cpfCnpj?.trim())            e('UC04','CPF/CNPJ do cliente não preenchido.');
+
+  // ── Dados do RT (obrigatórios para protocolo) ──────────────────────────
+  if(!fd.nomeResponsavel?.trim())    e('RT01','Nome do Responsável Técnico não preenchido.');
+  if(!fd.numeroCRT?.trim())          e('RT02','Nº CRT/CREA não preenchido.');
+  if(!fd.numART?.trim())             w('RT03','Nº da ART não preenchido. Obrigatório antes do protocolo.');
+
+  // ── Sistema fotovoltaico ───────────────────────────────────────────────
+  if(calc.kWp<=0)                    e('SFV01','Potência CC calculada é zero. Preencha Nº painéis e Potência (Wp).');
+  if(calc.kWtCA<=0)                  e('SFV02','Potência CA do inversor é zero. Preencha Potência CA (kW).');
+  if(!fd.modeloPainel?.trim())       w('SFV03','Modelo do painel não preenchido. Obrigatório no memorial e formulário CEEE.');
+  if(!fd.modeloInversor?.trim())     w('SFV04','Modelo do inversor não preenchido.');
+
+  // ── Consistência strings × painéis ────────────────────────────────────
+  const npCalc=num(fd.paineisSerie)*num(fd.stringParalelo);
+  const npForm=num(fd.numeroPaineis);
+  if(npCalc>0&&npForm>0&&Math.abs(npCalc-npForm)>0){
+    e('SFV05',`Inconsistência: ${fd.paineisSerie}S × ${fd.stringParalelo}P = ${npCalc} painéis, mas Nº painéis informado é ${npForm}. Corrija para que coincidam.`);
+  }
+
+  // ── Compatibilidade inversor × strings (Voc_max) ──────────────────────
+  const vInCC=num(fd.tensaoEntradaCC,0);
+  if(vInCC>0&&calc.vocMax>vInCC){
+    e('SFV06',`Voc_max calculado (${calc.vocMax}V) supera a tensão máxima de entrada CC do inversor (${vInCC}V). Risco de dano ao inversor e não conformidade com NBR 16690.`);
+  }
+  if(vInCC>0&&calc.vocMax<vInCC*0.5){
+    w('SFV07',`Voc_max (${calc.vocMax}V) é inferior a 50% da tensão máxima do inversor (${vInCC}V). Verifique o MPPT range do inversor para operação eficiente.`);
+  }
+
+  // ── Disjuntores vs correntes calculadas ───────────────────────────────
+  const djCC=num(fd.disjuntorCC,0);
+  const djCA=num(fd.disjuntorCA,0);
+  if(djCC>0&&djCC<calc.iDjCCMin){
+    e('SFV08',`Disjuntor CC (${djCC}A) é menor que a corrente de dimensionamento calculada (${calc.iDjCCMin}A = Icc × 1,25). Ajuste conforme NBR 16690.`);
+  }
+  if(djCA>0&&djCA<calc.iDjCAMin){
+    e('SFV09',`Disjuntor CA (${djCA}A) é menor que a corrente de dimensionamento calculada (${calc.iDjCAMin}A = In × 1,25). Ajuste conforme NBR 5410.`);
+  }
+
+  // ── Queda de tensão ────────────────────────────────────────────────────
+  if(calc.dvccP>3){
+    w('CAB01',`Queda de tensão CC (${calc.dvccP}%) supera 3% recomendado (NBR 16690). Considere aumentar a seção do cabo CC ou reduzir o comprimento.`);
+  }
+  if(calc.dvcaP>2){
+    w('CAB02',`Queda de tensão CA (${calc.dvcaP}%) supera 2% recomendado (NBR 5410). Considere aumentar a seção do cabo CA.`);
+  }
+
+  // ── DPS ────────────────────────────────────────────────────────────────
+  const dpsCCTensao=num(fd.dpsCCTensao,0);
+  if(dpsCCTensao>0&&calc.vocMax>0&&dpsCCTensao<calc.vocMax){
+    w('DPS01',`Tensão do DPS CC (${dpsCCTensao}V) é inferior ao Voc_max (${calc.vocMax}V). O DPS pode não proteger adequadamente.`);
+  }
+
+  // ── Potência CC vs CA ──────────────────────────────────────────────────
+  if(calc.kWp>0&&calc.kWtCA>0){
+    const ratio=calc.kWp/calc.kWtCA;
+    if(ratio>1.35){
+      w('SFV10',`Relação CC/CA (${ratio.toFixed(2)}) está acima de 1,35. Verifique com o fabricante do inversor se há risco de clipping excessivo de potência.`);
+    }
+    if(ratio<0.7){
+      w('SFV11',`Relação CC/CA (${ratio.toFixed(2)}) está abaixo de 0,70. O inversor pode estar superdimensionado para o gerador FV.`);
+    }
+  }
+
+  // ── Enquadramento: Minigeração exige mais documentação ──────────────────
+  if(calc.kWp>75){
+    i('ENQ01',`Sistema enquadrado como Minigeração Distribuída (${calc.kWp} kWp > 75 kWp). Prazo de análise CEEE: 60 dias. Pode exigir estudo de impacto na rede.`);
+  }
+
+  // ── Aviso de revisão RT ────────────────────────────────────────────────
+  i('GER01','⚠️ Todos os documentos gerados devem ser revisados e assinados pelo Responsável Técnico habilitado antes do protocolo junto à CEEE Equatorial.');
+
+  return issues;
+};
+
+// ── Painel de Validação ───────────────────────────────────────────────────
+const ValidationPanel=({issues})=>{
+  const erros=issues.filter(x=>x.nivel==='erro');
+  const avisos=issues.filter(x=>x.nivel==='aviso');
+  const infos=issues.filter(x=>x.nivel==='info');
+  const [expanded,setExpanded]=useState(false);
+
+  if(issues.length===0)return(
+    <div className="mx-3 mt-2 mb-1 px-3 py-2 rounded-lg bg-green-50 border border-green-200 flex items-center gap-2 text-xs text-green-700">
+      <span>✅</span><span className="font-semibold">Projeto validado — sem inconsistências detectadas.</span>
+    </div>
+  );
+
+  const headerColor=erros.length>0?'bg-red-50 border-red-300 text-red-800':avisos.length>0?'bg-amber-50 border-amber-300 text-amber-800':'bg-blue-50 border-blue-300 text-blue-700';
+  const headerIcon=erros.length>0?'🚫':avisos.length>0?'⚠️':'ℹ️';
+  const headerMsg=erros.length>0?`${erros.length} erro${erros.length>1?'s':''} crítico${erros.length>1?'s':''} — exportação bloqueada`
+    :avisos.length>0?`${avisos.length} aviso${avisos.length>1?'s':''} — revise antes de exportar`
+    :`${infos.length} informação${infos.length>1?'ões':''}`;
+
+  return(
+    <div className={`mx-3 mt-2 mb-1 rounded-lg border ${headerColor}`}>
+      <button onClick={()=>setExpanded(x=>!x)} className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold">
+        <span>{headerIcon} {headerMsg}</span>
+        <span className="text-slate-400">{expanded?'▲':'▼'}</span>
+      </button>
+      {expanded&&(
+        <div className="border-t border-current border-opacity-20 px-3 pb-3 pt-2 space-y-1.5 max-h-52 overflow-y-auto">
+          {erros.map((x,i)=>(
+            <div key={i} className="flex gap-2 text-xs">
+              <span className="flex-shrink-0 text-red-600 font-bold">[{x.cod}]</span>
+              <span className="text-red-700">{x.msg}</span>
+            </div>
+          ))}
+          {avisos.map((x,i)=>(
+            <div key={i} className="flex gap-2 text-xs">
+              <span className="flex-shrink-0 text-amber-600 font-bold">[{x.cod}]</span>
+              <span className="text-amber-700">{x.msg}</span>
+            </div>
+          ))}
+          {infos.map((x,i)=>(
+            <div key={i} className="flex gap-2 text-xs">
+              <span className="flex-shrink-0 text-blue-600 font-bold">[{x.cod}]</span>
+              <span className="text-blue-700">{x.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ── Template do Memorial (80% JS, 20% IA) ─────────────────────────────────
@@ -336,7 +496,7 @@ Tipo de cobertura: ${f.tipoTelhado}
 • Modos de proteção: L+/PE, L-/PE (modo comum) | L+/L- (diferencial)
 
 8.4 DPS — Proteção CA (QDC CA)
-• Tipo: ${f.dpsCAipo||'Tipo 2'}
+• Tipo: ${f.dpsCATipo||'Tipo 2'}
 • Tensão máxima de operação contínua (Uc): ${f.dpsCATensao||'275'} V CA
 • Corrente de descarga nominal (8/20 μs): mínimo 20 kA
 • Nível de proteção (Up): ≤ 1,8 kV
@@ -586,18 +746,19 @@ ${f.cidade||'Porto Alegre'}, ${hoje}.`;
 };
 
 // ── API helpers ────────────────────────────────────────────────────────────
+// Em produção (IS_PROD): chama /api/claude (proxy Vercel) — sem apiKey no browser.
+// Em dev (localhost / file://): chama Anthropic diretamente com a chave do usuário.
 const callAPI=async(apiKey,system,messages,maxTokens=4000)=>{
-  const r=await fetch(API_URL,{
-    method:'POST',
-    headers:{
-      'x-api-key':apiKey,
-      'anthropic-version':'2023-06-01',
-      'content-type':'application/json',
-      'anthropic-dangerous-direct-browser-access':'true',
-    },
-    body:JSON.stringify({model:MODEL,max_tokens:maxTokens,system,messages}),
-  });
-  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`Erro ${r.status}`);}
+  const headers={'content-type':'application/json'};
+  if(!IS_PROD){
+    // Desenvolvimento local — a chave vai no header (não exposta em produção)
+    if(!apiKey)throw new Error('Informe sua Anthropic API Key no cabeçalho do app.');
+    headers['x-api-key']=apiKey;
+    headers['anthropic-version']='2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access']='true';
+  }
+  const r=await fetch(API_URL,{method:'POST',headers,body:JSON.stringify({model:MODEL,max_tokens:maxTokens,system,messages})});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Erro HTTP ${r.status}`);}
   return r.json();
 };
 
@@ -1253,7 +1414,7 @@ const UploadModule=({apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingD
   const onDrop=(e)=>{e.preventDefault();setDrag(false);handleFiles(e.dataTransfer.files);};
 
   const extract=async()=>{
-    if(!apiKey){alert('Informe sua API Key primeiro.');return;}
+    if(!IS_PROD&&!apiKey){alert('Informe sua API Key primeiro (campo 🔑 no cabeçalho).');return;}
     if(!uploadedFiles.length){alert('Adicione pelo menos um arquivo.');return;}
     setExtractingData(true);
     try{
@@ -1269,7 +1430,7 @@ const UploadModule=({apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingD
 "paineisSerie":null,"stringParalelo":null,
 "modeloInversor":"","potenciaCAkW":null,"tensaoEntradaCC":null,"tensaoSaidaCA":null,
 "quantidadeInversores":null,"dpsCCTipo":"","dpsCCTensao":null,
-"dpsCAipo":"","dpsCATensao":null,"disjuntorCC":null,"disjuntorCA":null,
+"dpsCATipo":"","dpsCATensao":null,"disjuntorCC":null,"disjuntorCA":null,
 "aterramento":"","nomeResponsavel":"","numeroCRT":"","cidade":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`;
       const res=await callAPI(
@@ -1373,8 +1534,10 @@ const FormField=({label,name,value,onChange,type='text',options,readonly,aiField
   );
 };
 
-const Sidebar=({fd,onChange,calc,apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingData,setExtractingData,aiFilledFields})=>(
-  <div className="w-96 flex-shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto p-3">
+const Sidebar=({fd,onChange,calc,validacoes,apiKey,onExtract,uploadedFiles,setUploadedFiles,extractingData,setExtractingData,aiFilledFields})=>(
+  <div className="w-96 flex-shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto">
+    <ValidationPanel issues={validacoes}/>
+    <div className="p-3">
     <UploadModule
       apiKey={apiKey}
       onExtract={onExtract}
@@ -1439,7 +1602,7 @@ const Sidebar=({fd,onChange,calc,apiKey,onExtract,uploadedFiles,setUploadedFiles
       <FormField label="DPS CC Tipo" name="dpsCCTipo" value={fd.dpsCCTipo} onChange={onChange}
         options={['Tipo 1','Tipo 2','Tipo 1+2']} aiFields={aiFilledFields}/>
       <FormField label="DPS CC Tensão (V)" name="dpsCCTensao" value={fd.dpsCCTensao} onChange={onChange} type="number" aiFields={aiFilledFields}/>
-      <FormField label="DPS CA Tipo" name="dpsCAipo" value={fd.dpsCAipo} onChange={onChange}
+      <FormField label="DPS CA Tipo" name="dpsCATipo" value={fd.dpsCATipo} onChange={onChange}
         options={['Tipo 1','Tipo 2','Tipo 1+2']} aiFields={aiFilledFields}/>
       <FormField label="DPS CA Tensão (V)" name="dpsCATensao" value={fd.dpsCATensao} onChange={onChange} type="number" aiFields={aiFilledFields}/>
       <FormField label="Disjuntor CC (A)" name="disjuntorCC" value={fd.disjuntorCC} onChange={onChange} type="number" aiFields={aiFilledFields}/>
@@ -1468,6 +1631,7 @@ const Sidebar=({fd,onChange,calc,apiKey,onExtract,uploadedFiles,setUploadedFiles
       <FormField label="Cidade" name="cidade" value={fd.cidade} onChange={onChange} aiFields={aiFilledFields}/>
       <FormField label="Data do Projeto" name="dataproject" value={fd.dataproject} onChange={onChange} aiFields={aiFilledFields}/>
     </CollapsibleSection>
+  </div>{/* fim p-3 */}
   </div>
 );
 
@@ -1535,7 +1699,7 @@ NÚMEROS: Todos os valores numéricos técnicos já estão calculados no documen
 TAREFA: Complete APENAS os quatro marcadores [[[IA_NARRATIVA_SECx]]] com 2–4 parágrafos técnicos formais cada. Não altere nenhuma outra parte do documento. Retorne o documento completo com os marcadores substituídos.`;
 
   const gerarMemorial=async()=>{
-    if(!apiKey){setToast({message:'Informe a API Key no cabeçalho.',type:'error'});return;}
+    if(!IS_PROD&&!apiKey){setToast({message:'Informe a API Key no cabeçalho (🔑).',type:'error'});return;}
     setGeneratingMemorial(true);
     try{
       const template=buildMemorialTemplate(fd,calc);
@@ -1687,9 +1851,9 @@ Todos os resultados dos testes e ensaios deverão ser registrados em relatório 
                 <button onClick={gerarSemIA} className="px-4 py-2 text-sm font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50">
                   Modo Básico (sem IA)
                 </button>
-                <button onClick={gerarMemorial} disabled={!apiKey}
+                <button onClick={gerarMemorial} disabled={!IS_PROD&&!apiKey}
                   className="px-4 py-2 text-sm font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50">
-                  ✍️ Gerar com IA {!apiKey&&'(API Key necessária)'}
+                  ✍️ Gerar com IA {(!IS_PROD&&!apiKey)&&'(API Key necessária)'}
                 </button>
               </div>
             </div>
@@ -1718,43 +1882,14 @@ const DocumentosTab=({fd,calc,apiKey,setToast,docsGerados,setDocsGerados})=>{
   const [refiningProc,setRefiningProc]=useState(false);
   const [activeDoc,setActiveDoc]=useState('procuracao');
 
+  // Fonte única de geração — usa a função standalone para evitar duplicação
   const gerarProcuracao=()=>{
-    const hoje=fd.dataproject||new Date().toLocaleDateString('pt-BR');
-    const tipoPessoa=fd.tipoPessoa==='fisica'?
-      `${fd.nomeCliente||'___'}, CPF nº ${fd.cpfCnpj||'___'}, residente e domiciliado(a) em ${fd.endereco||'___'}`:
-      `${fd.nomeCliente||'___'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cpfCnpj||'___'}, com sede em ${fd.endereco||'___'}`;
-
-    const txt=`PROCURAÇÃO ESPECÍFICA
-
-${fd.cidade||'Porto Alegre'}, ${hoje}.
-
-OUTORGANTE: ${tipoPessoa}, titular da Unidade Consumidora (UC) de código ${fd.codigoUC||'___'}, área de concessão da CEEE Equatorial.
-
-OUTORGADO: ${fd.nomeEmpresa||'Instalight Energia Solar'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cnpjEmpresa||'___'}, com endereço em ${fd.enderecoEmpresa||'Porto Alegre, RS'}.
-
-Por meio deste instrumento particular, o OUTORGANTE nomeia e constitui o OUTORGADO como seu bastante procurador, conferindo-lhe poderes específicos para:
-
-I. Protocolar, instruir, assinar e acompanhar junto à CEEE Equatorial o processo de solicitação de acesso à rede de distribuição para implantação de sistema de ${calc.enq} fotovoltaica, nos termos do Art. 9° da Resolução Normativa ANEEL n° 1.000/2021 e da Lei Federal n° 14.300/2022;
-
-II. Assinar formulários, declarações e demais documentos necessários à aprovação do sistema fotovoltaico de ${calc.kWp}kWp (${num(fd.numeroPaineis)||'—'} módulos de ${fd.potenciaUnitariaWp||'—'}Wp, inversor ${fd.modeloInversor||'—'}) na referida Unidade Consumidora;
-
-III. Retirar protocolos, acompanhar o andamento do processo e praticar todos os atos necessários ao pleno cumprimento do objeto desta procuração.
-
-Esta procuração é outorgada com poderes para um único ato e somente para os fins acima especificados, vedada a substabelecimento.
-
-_______________________________
-${fd.nomeCliente||'OUTORGANTE'}
-${fd.tipoPessoa==='fisica'?'CPF':'CNPJ'}: ${fd.cpfCnpj||'___'}
-
-Reconhecimento de firma: _______________________________ (Cartório)
-
-NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
-    setProcuracao(txt);
+    setProcuracao(gerarTextoProcuracao(fd,calc));
     setDocsGerados(p=>({...p,procuracao:true}));
   };
 
   const refinarProcuracao=async()=>{
-    if(!apiKey){setToast({message:'Informe a API Key.',type:'error'});return;}
+    if(!IS_PROD&&!apiKey){setToast({message:'Informe a API Key (🔑 no cabeçalho).',type:'error'});return;}
     if(!procuracao){setToast({message:'Gere a procuração primeiro.',type:'error'});return;}
     setRefiningProc(true);
     try{
@@ -2074,6 +2209,7 @@ const App=()=>{
   const svgRef=useRef();
 
   const calc=useMemo(()=>calcularSistema(formData),[formData]);
+  const validacoes=useMemo(()=>validarProjeto(formData,calc),[formData,calc]);
 
   useEffect(()=>{
     if(apiKey)localStorage.setItem(LS_KEY,apiKey);
@@ -2107,6 +2243,11 @@ const App=()=>{
   },[]);
 
   const exportarTudo=async()=>{
+    const errosCriticos=validacoes.filter(x=>x.nivel==='erro');
+    if(errosCriticos.length>0){
+      setToast({message:`Exportação bloqueada: ${errosCriticos.length} erro(s) crítico(s). Corrija os itens em vermelho no painel de validação.`,type:'error'});
+      return;
+    }
     setToast({message:'Exportando todos os documentos…',type:'info'});
     const delay=ms=>new Promise(r=>setTimeout(r,ms));
     // 1 — Prancha SVG
@@ -2164,8 +2305,8 @@ const App=()=>{
         </div>
         {/* Spacer */}
         <div className="flex-1"/>
-        {/* API Key */}
-        <div className="flex items-center gap-2">
+        {/* API Key — somente em dev local; em produção a chave fica no servidor (api/claude.js) */}
+        {!IS_PROD&&<div className="flex items-center gap-2">
           <span className="text-gray-400 text-xs">🔑</span>
           <input
             type="password"
@@ -2174,7 +2315,7 @@ const App=()=>{
             placeholder="Anthropic API Key"
             className="bg-gray-800 text-gray-200 text-xs px-3 py-1.5 rounded border border-gray-700 outline-none focus:border-orange-500 w-56"
           />
-        </div>
+        </div>}
         {/* Export all */}
         <button onClick={exportarTudo} className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-1">
           ⬇ Exportar Tudo
@@ -2187,6 +2328,7 @@ const App=()=>{
           fd={formData}
           onChange={onChange}
           calc={calc}
+          validacoes={validacoes}
           apiKey={apiKey}
           onExtract={onExtract}
           uploadedFiles={uploadedFiles}
