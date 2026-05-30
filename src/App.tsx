@@ -17,7 +17,6 @@ import { calcularSistema }   from './engine/calcularSistema';
 import { validarProjeto }    from './engine/validarProjeto';
 import { LS_KEY }            from './constants';
 import { exportarDossieZip } from './helpers/zip';
-import { callAPI }           from './helpers/api';
 
 import type { FormData, Toast, DocsGerados } from './types';
 
@@ -123,15 +122,23 @@ export default function App() {
     if (!senhaInput.trim()) return;
     setVerificandoSenha(true);
     setSenhaErro('');
-    // Salva temporariamente para que callAPI possa incluir o token no header
-    sessionStorage.setItem('app_token', senhaInput.trim());
+    const token = senhaInput.trim();
     try {
-      // Chamada mínima ao proxy para validar o token contra APP_TOKEN no servidor
-      await callAPI('', 'Responda apenas "ok".', [{ role: 'user', content: 'ok' }], 1);
-      setAutenticado(true);
+      // Chama /api/ping — valida só o token, sem consumir cota Anthropic
+      const r = await fetch('/api/ping', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-app-token': token },
+        body: JSON.stringify({}),
+      });
+      if (r.ok) {
+        sessionStorage.setItem('app_token', token);
+        setAutenticado(true);
+      } else {
+        const data = await r.json().catch(() => ({})) as { error?: string };
+        setSenhaErro(data.error ?? 'Chave de acesso incorreta.');
+      }
     } catch {
-      sessionStorage.removeItem('app_token');
-      setSenhaErro('Chave de acesso incorreta. Verifique e tente novamente.');
+      setSenhaErro('Erro de conexão. Verifique sua internet e tente novamente.');
     } finally {
       setVerificandoSenha(false);
     }
