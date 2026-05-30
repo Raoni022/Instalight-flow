@@ -206,7 +206,10 @@ export default function App() {
       return;
     }
 
-    setToast({ message: 'Gerando dossiê ZIP…', type: 'info' });
+    setToast({
+      message: 'Gerando dossiê ZIP… ⚠ Se refinaste a procuração com IA, use o botão "Exportar PDF" na aba Documentos — o ZIP usa o texto original.',
+      type: 'info',
+    });
     const svgString = svgRef.current
       ? new XMLSerializer().serializeToString(svgRef.current)
       : '';

@@ -519,7 +519,7 @@ O projeto foi elaborado pela empresa ${fd.nomeEmpresa || 'Instalight Energia Sol
     )
     .replace(
       /\[\[\[IA_NARRATIVA_SEC7\]\]\]/g,
-      `Os módulos fotovoltaicos serão instalados sobre estrutura de suporte em alumínio anodizado com tratamento anti-corrosão, fixada sobre cobertura do tipo ${fd.tipoTelhado}. O sistema de fixação foi dimensionado para suportar cargas de vento de até 180 km/h conforme ABNT NBR 6118.
+      `Os módulos fotovoltaicos serão instalados sobre estrutura de suporte em alumínio anodizado com tratamento anti-corrosão, fixada sobre cobertura do tipo ${fd.tipoTelhado}. As cargas de vento foram consideradas conforme ABNT NBR 6123 (Forças devidas ao vento em edificações). A verificação estrutural detalhada é de responsabilidade do fabricante da estrutura, devendo ser apresentada mediante laudo técnico específico.
 
 Serão utilizados perfis de alumínio anodizado de alta resistência com conectores e grampos em aço inoxidável AISI 304, garantindo durabilidade mínima de 25 anos sem necessidade de pintura ou tratamento superficial adicional.`,
     )

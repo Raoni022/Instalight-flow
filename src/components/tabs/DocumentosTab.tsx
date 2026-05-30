@@ -86,14 +86,17 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
     setDocsGerados((p) => ({ ...p, formularioCEEE: true }));
   };
 
+  // Preview exibido na UI — deve espelhar exatamente o PDF exportado por exportarFormularioPDFStandalone
   const formCEEEPreview = `DADOS DO TITULAR
 Nome/Razão Social: ${fd.nomeCliente || '—'}
 CPF/CNPJ: ${fd.cpfCnpj || '—'}
 Endereço da UC: ${fd.endereco || '—'}
 Código UC: ${fd.codigoUC || '—'}
+Nº Conta-Contrato: ${fd.numContaContrato || '—'}
 Nº Fatura: ${fd.numeroFatura || '—'}
 
 DADOS DO SISTEMA
+Tipo de Instalação: ${fd.tipoInstalacao || 'Nova'}
 Tipo de Geração: ${calc.enq}
 Potência CC instalada: ${calc.kWp} kWp
 Potência CA nominal: ${calc.kWtCA} kW
