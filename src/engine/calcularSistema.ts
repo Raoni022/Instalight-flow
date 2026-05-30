@@ -96,15 +96,18 @@ export function calcularSistema(fd: FormData): Calculos {
   // DISJUNTORES (mínimos normativos)
   // ══════════════════════════════════════════════════════════════
   /**
-   * iDjCCMin — corrente mínima por string (proteção por string).
-   * Cada string tem seu próprio fusível/disjuntor: ≥ 1,25 × Isc_string.
-   * A corrente total é gerenciada pelo combiner/inversor.
+   * iDjCCMin — corrente mínima do disjuntor CC GERAL (antes do inversor).
+   * O disjuntor geral CC deve ser dimensionado para a corrente total do
+   * arranjo com o fator de segurança: ≥ 1,25 × Icc_total = iccNorma.
+   * (Para proteção individual de string: ≥ 1,25 × Isc_string = iscStr × 1,25.)
+   * [NBR 16690 §7.3]
    */
-  const iDjCCMin = parseFloat((iscStr * 1.25).toFixed(2));
+  const iDjCCMin = iccNorma;
   /**
-   * iDjCAMin — corrente nominal do inversor (CA).
-   * O disjuntor CA é selecionado ≥ In; a seleção da próxima bitola comercial
-   * já incorpora a margem de segurança conforme NBR 5410 §6.2.
+   * iDjCAMin — corrente mínima do disjuntor CA = corrente nominal do inversor.
+   * O disjuntor CA é selecionado ≥ In; a seção dos cabos é dimensionada
+   * para 1,25 × In (iDimCA), que é uma grandeza de cabo, não de disjuntor.
+   * [NBR 5410 §6.2]
    */
   const iDjCAMin = iNomCA;
 

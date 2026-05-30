@@ -215,16 +215,18 @@ Tipo de cobertura: ${fd.tipoTelhado}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 8. DIMENSIONAMENTO DAS PROTEÇÕES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-8.1 Disjuntor de Proteção CC
-• Corrente de dimensionamento (Icc × 1,25): ${calc.iccNorma} A
-• Disjuntor CC selecionado: ${djCC} A (${num(djCC) >= calc.iccNorma ? '✔ atende' : '⚠ verificar'})
+8.1 Disjuntor de Proteção CC (geral, antes do inversor)
+• Corrente de dimensionamento — Icc_total × 1,25: ${calc.iDjCCMin} A
+• Disjuntor CC selecionado: ${djCC} A (${num(djCC) >= calc.iDjCCMin ? '✔ atende' : '⚠ verificar'})
+  Nota: proteção individual de string: ≥ 1,25 × Isc_string = ${parseFloat((calc.iscStr * 1.25).toFixed(2))} A por fusível.
 • Número de pólos: 2 (bipolar, CC)
 • Tensão nominal mínima: ${calc.vocMax} V CC
 
 8.2 Disjuntor de Proteção CA
-• Corrente nominal CA: ${calc.iNomCA} A
-• Corrente de dimensionamento (In × 1,25): ${calc.iDimCA} A
-• Disjuntor CA selecionado: ${djCA} A (${num(djCA) >= calc.iDimCA ? '✔ atende' : '⚠ verificar'})
+• Corrente nominal CA (In):                  ${calc.iNomCA} A
+• Corrente de dimensionamento de cabo (In × 1,25): ${calc.iDimCA} A
+• Disjuntor CA selecionado: ${djCA} A (${num(djCA) >= calc.iDjCAMin ? '✔ atende' : '⚠ verificar'})
+  Nota: disjuntor selecionado ≥ In; condutor dimensionado para 1,25 × In. [NBR 5410 §6.2]
 • Número de pólos: ${fd.tipoLigacao === 'Monofásico' ? '2 (bipolar)' : '3 (tripolar)'}
 • Capacidade de interrupção: mínimo 5 kA
 

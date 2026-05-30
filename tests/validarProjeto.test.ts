@@ -33,8 +33,8 @@ const BASE: FormData = {
   dpsCCTensao: '1000',
   dpsCATipo: 'Tipo 2',
   dpsCATensao: '275',
-  disjuntorCC: '20',
-  disjuntorCA: '25',
+  disjuntorCC: '40',   // ≥ iccNorma ≈ 33.53 A (1,25 × Icc_total)
+  disjuntorCA: '25',   // ≥ iNomCA  ≈ 22.73 A
   aterramento: '5/8" x 2400mm',
   tipoTelhado: 'Cerâmico',
   coordenadas: '',
@@ -143,16 +143,34 @@ describe('validarProjeto — Sistema FV', () => {
 });
 
 describe('validarProjeto — Disjuntores', () => {
-  it('SFV08: erro quando disjuntor CC abaixo do mínimo normativo', () => {
-    // calc.iDjCCMin ≈ 21A (1.25 × iccTotal); disjuntor = 10A → erro
+  it('SFV08: erro quando disjuntor CC abaixo de iccNorma (1,25 × Icc_total)', () => {
+    // iDjCCMin = iccNorma ≈ 33.53 A; disjuntor = 10 A → erro
     const fd = { ...BASE, disjuntorCC: '10' };
     expect(hasCode(validarProjeto(fd, calcularSistema(BASE)), 'SFV08')).toBe(true);
   });
 
-  it('SFV08: sem erro quando disjuntor CC adequado', () => {
-    // disjuntor = 63A > iDjCCMin → sem erro
-    const fd = { ...BASE, disjuntorCC: '63' };
-    expect(hasCode(validarProjeto(fd, calcularSistema(BASE)), 'SFV08')).toBe(false);
+  it('SFV08: sem erro quando disjuntor CC adequado (≥ iccNorma)', () => {
+    // BASE.disjuntorCC = '40' ≥ iDjCCMin ≈ 33.53 A → sem erro
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'SFV08')).toBe(false);
+  });
+
+  it('SFV09: erro quando disjuntor CA abaixo da corrente nominal do inversor', () => {
+    // iDjCAMin = iNomCA ≈ 22.73 A; disjuntor = 10 A → erro
+    const fd = { ...BASE, disjuntorCA: '10' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(BASE)), 'SFV09')).toBe(true);
+  });
+
+  it('SFV09: sem erro quando disjuntor CA adequado (≥ iNomCA)', () => {
+    // BASE.disjuntorCA = '25' ≥ iDjCAMin ≈ 22.73 A → sem erro
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'SFV09')).toBe(false);
+  });
+
+  it('engine e memorial usam o mesmo limiar — sem "⚠ verificar" oculto', () => {
+    // Com BASE (disjuntorCC=40, disjuntorCA=25): nem SFV08 nem SFV09 disparados
+    // E o memorial imprimirá "✔ atende" em ambas as seções 8.1 e 8.2
+    const issues = validarProjeto(BASE, calcularSistema(BASE));
+    expect(hasCode(issues, 'SFV08')).toBe(false);
+    expect(hasCode(issues, 'SFV09')).toBe(false);
   });
 });
 

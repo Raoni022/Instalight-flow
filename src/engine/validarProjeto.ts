@@ -79,8 +79,8 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   }
   if (djCA > 0 && djCA < calc.iDjCAMin) {
     e('SFV09',
-      `Disjuntor CA (${djCA} A) abaixo da corrente de dimensionamento (${calc.iDjCAMin} A). ` +
-      `[NBR 5410 §6.2 — mínimo: 1,25 × In]`
+      `Disjuntor CA (${djCA} A) abaixo da corrente nominal do inversor (${calc.iDjCAMin} A). ` +
+      `[NBR 5410 §6.2 — disjuntor selecionado ≥ In]`
     );
   }
 
