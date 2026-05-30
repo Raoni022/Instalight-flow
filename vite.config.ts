@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // 'hidden': gera os .map mas não os referencia no bundle (disponíveis para monitoramento
+    // interno mas não expostos via browser DevTools em produção).
+    sourcemap: 'hidden',
   },
   server: {
     // Em desenvolvimento, o Vite faz proxy das chamadas /api para o servidor local.

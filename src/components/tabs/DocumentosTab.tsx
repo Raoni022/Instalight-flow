@@ -10,7 +10,7 @@ import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
 import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
-import { gerarTextoProcuracao } from '../../helpers/export';
+import { gerarTextoProcuracao, exportarFormularioPDFStandalone } from '../../helpers/export';
 
 interface DocumentosTabProps {
   fd: FormData;
@@ -79,61 +79,10 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
     doc.save(makeFilename('procuracao', fd));
   };
 
+  // Usa a função standalone de export.ts — fonte única de verdade, sempre atualizada.
+  // (A função local anterior estava desatualizada: faltavam numContaContrato, tipoInstalacao.)
   const exportFormularioPDF = () => {
-    const doc = makePDF('p', 'a4');
-    const W = doc.internal.pageSize.getWidth();
-    pdfHeader(doc, fd);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FORMULÁRIO DE SOLICITAÇÃO DE ACESSO', W / 2, 35, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Micro/Minigeração Distribuída — CEEE Equatorial', W / 2, 42, { align: 'center' });
-
-    let y = 52;
-    const linha = (label: string, valor: string | undefined) => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text(label + ':', 14, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(valor || '—', 80, y);
-      doc.setDrawColor(220, 220, 220);
-      doc.line(14, y + 2, W - 14, y + 2);
-      y += 10;
-    };
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('DADOS DO TITULAR', 14, y);
-    y += 8;
-    linha('Nome/Razão Social', fd.nomeCliente);
-    linha('CPF/CNPJ', fd.cpfCnpj);
-    linha('Endereço da UC', fd.endereco);
-    linha('Código UC', fd.codigoUC);
-    linha('Nº Fatura', fd.numeroFatura);
-
-    y += 4;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('DADOS DO SISTEMA', 14, y);
-    y += 8;
-    linha('Tipo de Geração', calc.enq);
-    linha('Potência CC instalada', `${calc.kWp} kWp`);
-    linha('Potência CA nominal', `${calc.kWtCA} kW`);
-    linha('Tipo de Ligação', fd.tipoLigacao);
-    linha('Módulos FV', `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`);
-    linha('Inversor', fd.modeloInversor || '—');
-    linha('Responsável Técnico', fd.nomeResponsavel);
-    linha('CRT/CREA', fd.numeroCRT);
-
-    y += 6;
-    doc.setFontSize(7);
-    doc.setTextColor(120, 120, 120);
-    doc.text('⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.', 14, y);
-    doc.setTextColor(30, 30, 30);
-    pdfRTWarning(doc);
-    pdfFooter(doc, fd, 1, 1);
-    doc.save(makeFilename('formulario_ceee', fd));
+    exportarFormularioPDFStandalone(fd, calc);
     setDocsGerados((p) => ({ ...p, formularioCEEE: true }));
   };
 

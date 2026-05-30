@@ -17,6 +17,7 @@ import { calcularSistema }   from './engine/calcularSistema';
 import { validarProjeto }    from './engine/validarProjeto';
 import { LS_KEY }            from './constants';
 import { exportarDossieZip } from './helpers/zip';
+import { callAPI }           from './helpers/api';
 
 import type { FormData, Toast, DocsGerados } from './types';
 
@@ -76,6 +77,14 @@ const IS_PROD =
 
 // ── App ───────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Autenticação interna (apenas em produção, quando APP_TOKEN configurado no proxy) ──
+  const [autenticado, setAutenticado]   = useState<boolean>(
+    !IS_PROD || !!sessionStorage.getItem('app_token'),
+  );
+  const [senhaInput, setSenhaInput]     = useState('');
+  const [senhaErro, setSenhaErro]       = useState('');
+  const [verificandoSenha, setVerificandoSenha] = useState(false);
+
   // ── Estado central ──
   const [formData, setFormData]         = useState<FormData>(INITIAL_FORM);
   const [apiKey, setApiKey]             = useState<string>(() => localStorage.getItem(LS_KEY) ?? '');
@@ -108,6 +117,25 @@ export default function App() {
   useEffect(() => {
     if (!IS_PROD && apiKey) localStorage.setItem(LS_KEY, apiKey);
   }, [apiKey]);
+
+  // ── Verificação da senha de acesso interno ──
+  const verificarSenha = useCallback(async () => {
+    if (!senhaInput.trim()) return;
+    setVerificandoSenha(true);
+    setSenhaErro('');
+    // Salva temporariamente para que callAPI possa incluir o token no header
+    sessionStorage.setItem('app_token', senhaInput.trim());
+    try {
+      // Chamada mínima ao proxy para validar o token contra APP_TOKEN no servidor
+      await callAPI('', 'Responda apenas "ok".', [{ role: 'user', content: 'ok' }], 1);
+      setAutenticado(true);
+    } catch {
+      sessionStorage.removeItem('app_token');
+      setSenhaErro('Chave de acesso incorreta. Verifique e tente novamente.');
+    } finally {
+      setVerificandoSenha(false);
+    }
+  }, [senhaInput]);
 
   // ── Auto-dismiss do toast (4 s) ──
   useEffect(() => {
@@ -185,6 +213,43 @@ export default function App() {
   }, [formData, calc, memorialIA, docsGerados, validacoes]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  // Modal de acesso — exibido apenas em produção quando APP_TOKEN está configurado no proxy
+  if (!autenticado) {
+    return (
+      <div className="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-sm mx-4">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-2">☀️</div>
+            <h1 className="text-xl font-bold text-gray-900">GD Docs — Instalight Flow</h1>
+            <p className="text-sm text-gray-500 mt-1">Uso interno • Acesso restrito</p>
+          </div>
+          <input
+            type="password"
+            value={senhaInput}
+            onChange={(e) => setSenhaInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && verificarSenha()}
+            placeholder="Chave de acesso"
+            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
+            autoFocus
+          />
+          {senhaErro && (
+            <p className="text-xs text-red-600 mb-3">{senhaErro}</p>
+          )}
+          <button
+            onClick={verificarSenha}
+            disabled={verificandoSenha || !senhaInput.trim()}
+            className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-semibold
+                       hover:bg-orange-600 disabled:opacity-50 transition-colors"
+          >
+            {verificandoSenha ? 'Verificando…' : 'Entrar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
 

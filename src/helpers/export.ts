@@ -13,7 +13,6 @@
 import type { FormData, Calculos, DocsGerados } from '../types';
 import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from './pdf';
 import { makeFilename } from './filename';
-import type { jsPDF } from 'jspdf';
 
 // ── Helpers internos de build ──────────────────────────────────────────────
 
@@ -54,7 +53,7 @@ Reconhecimento de firma: _______________________________ (Cartório)
 NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
 }
 
-function _buildProcuracaoPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filename: string } {
+function _buildProcuracaoPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
   pdfHeader(doc, fd);
   const W = doc.internal.pageSize.getWidth();
@@ -70,7 +69,7 @@ function _buildProcuracaoPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filena
   return { doc, filename: makeFilename('procuracao', fd) };
 }
 
-function _buildFormularioPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filename: string } {
+function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
   const W = doc.internal.pageSize.getWidth();
   pdfHeader(doc, fd);
@@ -139,7 +138,7 @@ function _buildPendenciasPDF(
   fd: FormData,
   calc: Calculos,
   docsGerados: DocsGerados,
-): { doc: jsPDF; filename: string } {
+) {
   const groupA = [
     {
       id: 'A1', doc: 'Procuração Específica', gerado: docsGerados.procuracao,
@@ -231,7 +230,7 @@ function _buildMemorialPDF(
   fd: FormData,
   calc: Calculos,
   memorialIA: string,
-): { doc: jsPDF; filename: string } {
+) {
   const doc = makePDF('p', 'a4');
   const W = doc.internal.pageSize.getWidth();
   pdfHeader(doc, fd);

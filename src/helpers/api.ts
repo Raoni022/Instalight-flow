@@ -52,6 +52,10 @@ export async function callAPI(
     headers['x-api-key'] = apiKey;
     headers['anthropic-version'] = '2023-06-01';
     headers['anthropic-dangerous-direct-browser-access'] = 'true';
+  } else {
+    // Em produção: inclui o token de acesso interno (armazenado no sessionStorage pelo modal de senha)
+    const appToken = sessionStorage.getItem('app_token') ?? '';
+    if (appToken) headers['x-app-token'] = appToken;
   }
 
   const url = IS_PROD ? PROXY_URL : DIRECT_URL;
