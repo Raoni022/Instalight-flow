@@ -1,20 +1,15 @@
-// api/claude.js — Vercel Serverless Function
+// api/claude.js — Vercel Serverless Function (ESM)
 // Proxy seguro para a API Anthropic.
 // A chave de API fica no servidor (variável de ambiente) e nunca é exposta ao browser.
 //
 // Variáveis de ambiente requeridas (configurar no painel Vercel):
 //   ANTHROPIC_API_KEY=sk-ant-...    ← chave da API Anthropic
-//   APP_TOKEN=<32 chars>            ← senha de acesso interno (opcional; se ausente, proxy aberto)
-//
-// Vercel auto-detecta este arquivo na pasta api/ e o expõe como POST /api/claude.
-// Node.js 18+ (fetch nativo disponível — sem dependências externas).
+//   APP_TOKEN=<32 chars>            ← senha de acesso interno (opcional)
 
-// ── Rate limiting simples (memória por instância serverless) ─────────────
-// Janela de 5 minutos, máximo 30 requisições por IP.
-// O Map é resetado a cada cold start — comportamento adequado para uso interno.
-const rateLimitMap = new Map(); // ip → { count, windowStart }
+// ── Rate limiting (memória por instância serverless) ─────────────────────
+const rateLimitMap = new Map();
 const RATE_LIMIT   = 30;
-const WINDOW_MS    = 5 * 60 * 1000; // 5 minutos
+const WINDOW_MS    = 5 * 60 * 1000;
 
 function checkRateLimit(ip) {
   const now   = Date.now();
@@ -28,17 +23,14 @@ function checkRateLimit(ip) {
   return entry.count <= RATE_LIMIT;
 }
 
-module.exports = async (req, res) => {
-  // CORS — permite chamadas do frontend hospedado no mesmo domínio Vercel
+export default async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type, x-app-token');
   res.setHeader('Vary', 'Origin');
 
-  // Pre-flight CORS
   if (req.method === 'OPTIONS') return res.status(200).end();
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
@@ -54,8 +46,6 @@ module.exports = async (req, res) => {
   }
 
   // ── Autenticação por token interno ────────────────────────────
-  // APP_TOKEN configurado → exige token válido em todas as requisições.
-  // Se não configurado → proxy funciona sem autenticação (compatibilidade com dev local).
   const appToken = process.env.APP_TOKEN;
   if (appToken) {
     const clientToken = req.headers['x-app-token'];
@@ -70,12 +60,10 @@ module.exports = async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
-      error: 'ANTHROPIC_API_KEY não configurada. '
-        + 'Defina a variável de ambiente no painel do Vercel (Settings → Environment Variables).',
+      error: 'ANTHROPIC_API_KEY não configurada no painel do Vercel.',
     });
   }
 
-  // req.body já vem parseado pelo Vercel (bodyParser ativado por padrão para application/json)
   if (!req.body || !req.body.model) {
     return res.status(400).json({ error: 'Body inválido. Envie um objeto com "model" e "messages".' });
   }
@@ -96,4 +84,4 @@ module.exports = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: `Erro no proxy Anthropic: ${err.message}` });
   }
-};
+}

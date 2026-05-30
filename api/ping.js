@@ -1,8 +1,7 @@
-// api/ping.js — Verificação de token de acesso interno
+// api/ping.js — Verificação de token de acesso interno (ESM)
 // Valida o APP_TOKEN sem chamar a API Anthropic.
-// Usado pelo modal de senha para autenticar sem consumir cota.
 
-module.exports = (req, res) => {
+export default function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -14,7 +13,7 @@ module.exports = (req, res) => {
 
   const appToken = process.env.APP_TOKEN;
 
-  // Se APP_TOKEN não configurado → retorna ok (ambiente sem proteção)
+  // Se APP_TOKEN não configurado → sem proteção (compatibilidade dev)
   if (!appToken) return res.status(200).json({ ok: true, protected: false });
 
   const clientToken = req.headers['x-app-token'];
@@ -23,4 +22,4 @@ module.exports = (req, res) => {
   }
 
   return res.status(200).json({ ok: true, protected: true });
-};
+}
