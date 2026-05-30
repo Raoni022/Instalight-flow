@@ -88,10 +88,16 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   }
 
   // ── Queda de tensão ───────────────────────────────────────────
-  if (calc.dvccP > 3) {
+  // Usa dvccOpP (Impp/Vmpp) quando disponível — grandeza normativa NBR 16690.
+  // Fallback para dvccP (Icc×1,25/Voc) — método conservador de dimensionamento.
+  const dvccCheck = calc.dvccOpP !== null ? calc.dvccOpP : calc.dvccP;
+  const dvccLabel = calc.dvccOpP !== null
+    ? `ΔV operacional ${calc.dvccOpP}% (Impp/Vmpp)`
+    : `ΔV dimensionamento ${calc.dvccP}% (Icc×1,25/Voc)`;
+  if (dvccCheck > 3) {
     w('CAB01',
-      `Queda de tensão CC (${calc.dvccP}%) supera o limite de 3%. ` +
-      `Aumente a seção do cabo CC ou reduza o comprimento.`
+      `Queda de tensão CC (${dvccLabel}) supera o limite de 3%. ` +
+      `Aumente a seção do cabo CC ou reduza o comprimento. [NBR 16690]`
     );
   }
   if (calc.dvcaP > 2) {
@@ -158,6 +164,24 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     e('SFV14',
       `Voc da string (${calc.vocStr} V) abaixo da tensão de partida do inversor (${tPartida} V). ` +
       `O inversor não conseguirá ligar. Aumente os painéis em série ou revise o modelo do inversor.`
+    );
+  }
+
+  // ── Ligação bifásica — ambiguidade na corrente CA ────────────
+  if (fd.tipoLigacao === 'Bifásico') {
+    w('SFV15',
+      'Ligação bifásica: o cálculo assume corrente distribuída em 2 fases (I = P / 2V). ' +
+      'Confirme com o fabricante se o inversor usa saída bifásica real (2 fases independentes) ' +
+      'ou saída monofásica (apenas L+N). [NBR 5410]'
+    );
+  }
+
+  // ── Aterramento — resistência medida ─────────────────────────
+  const resAt = parseFloat(fd.resistenciaAterramento || '');
+  if (!isNaN(resAt) && resAt > 10) {
+    e('AT01',
+      `Resistência de aterramento medida (${resAt} Ω) acima do limite de 10 Ω. ` +
+      `Verificar instalação das hastes, conexões e solo. [NBR 5419]`
     );
   }
 

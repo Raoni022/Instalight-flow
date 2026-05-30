@@ -101,6 +101,7 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filena
   linha('CPF/CNPJ', fd.cpfCnpj);
   linha('Endereço da UC', fd.endereco);
   linha('Código UC', fd.codigoUC);
+  linha('Nº Conta-Contrato', fd.numContaContrato);
   linha('Nº Fatura', fd.numeroFatura);
 
   y += 4;
@@ -108,6 +109,7 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filena
   doc.setFontSize(10);
   doc.text('DADOS DO SISTEMA', 14, y);
   y += 8;
+  linha('Tipo de Instalação', fd.tipoInstalacao || 'Nova');
   linha('Tipo de Geração', calc.enq);
   linha('Potência CC instalada', `${calc.kWp} kWp`);
   linha('Potência CA nominal', `${calc.kWtCA} kW`);
@@ -161,7 +163,10 @@ function _buildPendenciasPDF(
   const groupB = [
     { id: 'B1', doc: 'Diagrama Unifilar',            gerado: true,                   como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF' },
     { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)', gerado: true,                   como: 'Incluído na mesma prancha da aba "Diagramas"' },
-    { id: 'B3', doc: 'Planta de Situação / Locação', gerado: false,                  como: 'Providenciar foto aérea ou print do Google Maps com escala' },
+    { id: 'B3', doc: 'Planta de Situação / Locação', gerado: false,
+      como: fd.endereco
+        ? `Abrir maps.google.com/?q=${encodeURIComponent(fd.endereco)} — capturar print com escala e norte indicados`
+        : 'Preencha o endereço da UC para gerar o link do Google Maps' },
     { id: 'B4', doc: 'Memorial Técnico-Descritivo',  gerado: docsGerados.memorial,   como: 'Gere na aba "Memorial" e valide com o RT' },
     { id: 'B5', doc: 'TRT/ART (Responsabilidade Técnica)', gerado: false,            como: 'RT deve assinar a ART no sistema do CREA/CFT' },
     { id: 'B6', doc: 'Data Sheets dos equipamentos', gerado: false,                  como: 'Baixar do site do fabricante e incluir no dossiê' },

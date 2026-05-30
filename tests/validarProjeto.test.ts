@@ -6,6 +6,7 @@ import type { FormData } from '../src/types';
 // ── Formulário base — projeto completo e consistente ─────────────────────
 const BASE: FormData = {
   tipoPessoa: 'fisica',
+  tipoInstalacao: 'Nova',
   nomeCliente: 'João Silva',
   cpfCnpj: '123.456.789-00',
   endereco: 'Rua Teste, 1 — Porto Alegre/RS',
@@ -38,7 +39,7 @@ const BASE: FormData = {
   dpsCATensao: '275',
   disjuntorCC: '40',   // ≥ iccNorma ≈ 33.53 A (1,25 × Icc_total)
   disjuntorCA: '25',   // ≥ iNomCA  ≈ 22.73 A
-  aterramento: '5/8" x 2400mm', modeloStringBox: '',
+  aterramento: '5/8" x 2400mm', modeloStringBox: '', resistenciaAterramento: '',
   tipoTelhado: 'Cerâmico',
   coordenadas: '', tempMinima: '',
   nomeResponsavel: 'Eng. Carlos Souza',
@@ -274,5 +275,38 @@ describe('validarProjeto — Tensão de partida do inversor (SFV14)', () => {
     // vocStr = 205V > tensaoPartidaCC = 100V → ok
     const fd = { ...BASE, tensaoPartidaCC: '100' };
     expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV14')).toBe(false);
+  });
+});
+
+describe('validarProjeto — SFV15 (bifásico)', () => {
+  it('SFV15: aviso quando tipoLigacao = Bifásico', () => {
+    const fd = { ...BASE, tipoLigacao: 'Bifásico' as const };
+    const issues = validarProjeto(fd, calcularSistema(fd));
+    expect(hasCode(issues, 'SFV15')).toBe(true);
+    expect(issues.find(x => x.cod === 'SFV15')?.nivel).toBe('aviso');
+  });
+
+  it('SFV15: sem aviso para Monofásico e Trifásico', () => {
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'SFV15')).toBe(false);
+    const fd3 = { ...BASE, tipoLigacao: 'Trifásico' as const };
+    expect(hasCode(validarProjeto(fd3, calcularSistema(fd3)), 'SFV15')).toBe(false);
+  });
+});
+
+describe('validarProjeto — AT01 (aterramento medido)', () => {
+  it('AT01: erro quando resistência de aterramento > 10 Ω', () => {
+    const fd = { ...BASE, resistenciaAterramento: '15' };
+    const issues = validarProjeto(fd, calcularSistema(BASE));
+    expect(hasCode(issues, 'AT01')).toBe(true);
+    expect(issues.find(x => x.cod === 'AT01')?.nivel).toBe('erro');
+  });
+
+  it('AT01: sem erro quando resistência ≤ 10 Ω', () => {
+    const fd = { ...BASE, resistenciaAterramento: '5' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(BASE)), 'AT01')).toBe(false);
+  });
+
+  it('AT01: sem erro quando campo vazio', () => {
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'AT01')).toBe(false);
   });
 });

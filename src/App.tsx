@@ -29,6 +29,7 @@ import { ResumoTab }     from './components/tabs/ResumoTab';
 // ── Formulário inicial ────────────────────────────────────────────────────
 export const INITIAL_FORM: FormData = {
   tipoPessoa: 'fisica',
+  tipoInstalacao: 'Nova',
   nomeCliente: '', cpfCnpj: '', endereco: '', codigoUC: '',
   numeroFatura: '', consumoMensalKwh: '', numContaContrato: '',
   tipoLigacao: 'Monofásico',
@@ -43,7 +44,7 @@ export const INITIAL_FORM: FormData = {
   comprimentoCabosCC: '', comprimentoCabosCA: '',
   dpsCCTipo: 'Tipo 2', dpsCCTensao: '1000',
   dpsCATipo: 'Tipo 2', dpsCATensao: '275',
-  disjuntorCC: '', disjuntorCA: '', aterramento: '', modeloStringBox: '',
+  disjuntorCC: '', disjuntorCA: '', aterramento: '', modeloStringBox: '', resistenciaAterramento: '',
   tipoTelhado: 'Cerâmico', coordenadas: '', tempMinima: '',
   nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),

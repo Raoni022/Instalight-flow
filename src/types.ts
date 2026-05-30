@@ -11,6 +11,7 @@ export type ToastType   = 'success' | 'error' | 'warning' | 'info';
 export interface FormData {
   // CLIENTE
   tipoPessoa: TipoPessoa;
+  tipoInstalacao: 'Nova' | 'Ampliação'; // Para o formulário CEEE
   nomeCliente: string;
   cpfCnpj: string;
   endereco: string;
@@ -64,7 +65,8 @@ export interface FormData {
   disjuntorCC: string;
   disjuntorCA: string;
   aterramento: string;
-  modeloStringBox: string; // Modelo da string box CC (opcional)
+  modeloStringBox: string;        // Modelo da string box CC (opcional)
+  resistenciaAterramento: string; // Resistência medida após instalação (Ω) — laudo do RT
 
   // INSTALAÇÃO
   tipoTelhado: TipoTelhado;

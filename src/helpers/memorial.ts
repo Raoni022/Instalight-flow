@@ -101,6 +101,7 @@ Voc   Tensão de Circuito Aberto
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Titular:            ${fd.nomeCliente || '[INSERIR NOME]'}
 ${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}:                ${fd.cpfCnpj || '[INSERIR]'}
+Tipo de instalação: ${fd.tipoInstalacao || 'Nova'}
 Conta-Contrato:     ${fd.numContaContrato || '[INSERIR CONTA-CONTRATO]'}
 Código da UC:       ${fd.codigoUC || '[INSERIR CÓDIGO UC]'}
 Endereço:           ${fd.endereco || '[INSERIR ENDEREÇO COMPLETO]'}
@@ -182,16 +183,16 @@ Onde:
 
   ΔV(CC) = (2 × ${fd.comprimentoCabosCC || '?'} × ${calc.iccNorma} × 0,01724) / ${fd.secaoCaboCC || '6'} = ${calc.dvccV} V
   ΔV(CC)% = ${calc.dvccV} / ${calc.vocStr} × 100 = ${calc.dvccP}%
+  [Nota: corrente de dimensionamento Icc×1,25 referenciada a Voc — cálculo conservador para dimensionamento do cabo]
 
-${calc.dvccP <= 3 ? '✔ Queda de tensão CC (dimensionamento) dentro do limite de 3% (NBR 16690).' : '⚠ Verificar bitola do cabo CC — queda de dimensionamento superior a 3% (NBR 16690).'}
 ${calc.dvccOpP !== null
-  ? `
-ΔV CC Operacional (ponto de máxima potência — MPPT):
+  ? `ΔV CC Operacional (ponto de máxima potência — MPPT):
   I = ${calc.imppTotal} A (Impp total) | V_ref = ${calc.vmppString} V (Vmpp string)
   ΔV(CC_op) = (2 × ${fd.comprimentoCabosCC || '?'} × ${calc.imppTotal} × 0,01724) / ${fd.secaoCaboCC || '6'} = ${calc.dvccOpV} V
-  ΔV(CC_op)% = ${calc.dvccOpP}% (referenciado a Vmpp = ${calc.vmppString} V)
-${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3%.' : '⚠ Queda operacional superior a 3% — avaliar aumento da bitola CC.'}`
-  : '(Preencha Vmpp e Impp no formulário para calcular ΔV operacional)'}
+  ΔV(CC_op)% = ${calc.dvccOpP}% (referenciado a Vmpp — grandeza normativa NBR 16690)
+${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3% (NBR 16690).' : '⚠ Queda operacional superior a 3% — avaliar aumento da bitola CC.'}`
+  : `${calc.dvccP <= 3 ? '✔ Queda de tensão CC dentro do limite de 3% (NBR 16690 — método conservador).' : '⚠ Verificar bitola do cabo CC — queda de dimensionamento superior a 3% (NBR 16690).'}
+(Preencha Vmpp e Impp no formulário para calcular ΔV operacional — grandeza normativa preferida.)`}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 6. DIMENSIONAMENTO DO INVERSOR
@@ -215,7 +216,7 @@ ${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3%.' : '⚠ Que
 | Grau de proteção                      | IP65 (mínimo)            |
 | Proteção anti-ilhamento               | Integrada (NBR IEC 62116)|
 
-Relação CC/CA: ${calc.kWp > 0 && calc.kWtCA > 0 ? (calc.kWp / calc.kWtCA).toFixed(2) : '[CALCULAR]'} (faixa recomendada: 1,0 a 1,3)
+Relação CC/CA: ${calc.kWp > 0 && calc.kWtCA > 0 ? (calc.kWp / calc.kWtCA).toFixed(2) : '[CALCULAR]'} (faixa recomendada: 1,0–1,35 — alertas automáticos: < 0,70 ou > 1,35)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. ESTRUTURA DE FIXAÇÃO
@@ -261,24 +262,30 @@ String Box CC: ${fd.modeloStringBox || '(modelo a confirmar com o instalador)'}
 8.5 Sistema de Aterramento
 • Configuração: ${fd.aterramento || 'Haste de aterramento 5/8" × 2,40 m, com conector de bronze'}
 • Condutor de aterramento: ${fd.secaoCaboAterr || '6'} mm² — isolação verde/amarela
-• Resistência de aterramento: ≤ 10 Ω (conforme ABNT NBR 5419)
+• Resistência de aterramento especificada: ≤ 10 Ω (ABNT NBR 5419)
+• Resistência de aterramento medida: ${fd.resistenciaAterramento
+  ? `${fd.resistenciaAterramento} Ω — ${parseFloat(fd.resistenciaAterramento) <= 10 ? '✔ conforme NBR 5419' : '⚠ ACIMA DO LIMITE — verificar instalação das hastes e solo'}`
+  : '[INSERIR valor medido após instalação — laudo obrigatório do RT]'}
 • Tensão de contato admissível: ≤ 25 V (situação 2, Tabela C.2 — NBR 5410:2004)
 • Interligação: O sistema de aterramento do SFV deve ser interligado ao aterramento principal da instalação elétrica existente.
 • Barramento de equipotencialização: cobre estanhado, seção mínima de ${fd.secaoCaboAterr || '6'} mm²
 
 8.6 Tabela de Requisitos de Proteção do Inversor
 
-| Requisito de Proteção                              | Indicação   |
-|----------------------------------------------------|-------------|
-| Proteção de subtensão (27)                         | Integrada   |
-| Proteção de sobretensão (59)                       | Integrada   |
-| Proteção de subfrequência (81U)                    | Integrada   |
-| Proteção de sobrefrequência (81O)                  | Integrada   |
-| Proteção contra reversão de tensão (47)            | Integrada   |
-| Proteção de sobrecorrente (50/51)                  | Integrada   |
-| Proteção anti-ilhamento (NBR IEC 62116)            | Integrada   |
-| Check de sincronismo (25)                          | Integrada   |
-| Temporizador de reconexão (62)                     | Integrada   |
+| Requisito de Proteção                              | Indicação   | Faixa típica (PRODIST Módulo 3)       |
+|----------------------------------------------------|-------------|---------------------------------------|
+| Proteção de subtensão (27)                         | Integrada   | ≥ 0,88 pu (≥ 193,6 V em 220 V)       |
+| Proteção de sobretensão (59)                       | Integrada   | ≤ 1,10 pu (≤ 242,0 V em 220 V)       |
+| Proteção de subfrequência (81U)                    | Integrada   | ≥ 57,5 Hz                             |
+| Proteção de sobrefrequência (81O)                  | Integrada   | ≤ 60,5 Hz                             |
+| Proteção contra reversão de tensão (47)            | Integrada   | —                                     |
+| Proteção de sobrecorrente (50/51)                  | Integrada   | —                                     |
+| Proteção anti-ilhamento (NBR IEC 62116)            | Integrada   | Ensaio conforme norma                 |
+| Check de sincronismo (25)                          | Integrada   | —                                     |
+| Temporizador de reconexão (62)                     | Integrada   | —                                     |
+
+PENDENTE: confirmar os valores reais de ajuste no datasheet e manual do inversor selecionado.
+Referência normativa: PRODIST Módulo 3 — Acesso ao Sistema de Distribuição (vigente).
 | Monitoração de isolamento CC                       | Integrada   |
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

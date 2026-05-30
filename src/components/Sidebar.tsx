@@ -57,6 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <CollapsibleSection title="Cliente" icon="👤" defaultOpen>
         <FormField label="Tipo de Pessoa" name="tipoPessoa" value={fd.tipoPessoa} onChange={onChange}
           options={['fisica', 'juridica']} aiFields={aiFilledFields} />
+        <FormField label="Tipo de Instalação" name="tipoInstalacao" value={fd.tipoInstalacao} onChange={onChange}
+          options={['Nova', 'Ampliação']} aiFields={aiFilledFields} />
         <FormField label="Nome / Razão Social" name="nomeCliente" value={fd.nomeCliente} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label={fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'} name="cpfCnpj" value={fd.cpfCnpj} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Endereço da UC" name="endereco" value={fd.endereco} onChange={onChange} aiFields={aiFilledFields} />
@@ -144,6 +146,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Aterramento" name="aterramento" value={fd.aterramento} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Modelo da String Box (opcional)" name="modeloStringBox" value={fd.modeloStringBox} onChange={onChange}
           placeholder="Ex: Solis PV-QB4-20-40" aiFields={aiFilledFields} />
+        <FormField label="Resistência de aterramento medida (Ω)" name="resistenciaAterramento" type="number"
+          value={fd.resistenciaAterramento} onChange={onChange}
+          placeholder="Ex: 4,5 (deve ser ≤ 10 Ω — NBR 5419)" aiFields={aiFilledFields} />
       </CollapsibleSection>
 
       {/* ── INSTALAÇÃO ── */}

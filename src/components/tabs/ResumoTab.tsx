@@ -32,9 +32,10 @@ interface CheckItemProps {
   doc: string;
   gerado: boolean;
   como: string;
+  link?: string; // URL opcional para abrir (ex: Google Maps)
 }
 
-const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como }) => (
+const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como, link }) => (
   <div className={`flex items-start gap-3 p-3 rounded-lg border ${gerado ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
     <span className="text-lg flex-shrink-0">{gerado ? '✅' : '⏳'}</span>
     <div className="flex-1 min-w-0">
@@ -43,6 +44,12 @@ const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como }) => (
         <span className={`text-sm font-medium ${gerado ? 'text-green-700' : 'text-slate-700'}`}>{doc}</span>
       </div>
       {!gerado && <p className="text-xs text-slate-500 mt-0.5">{como}</p>}
+      {!gerado && link && (
+        <a href={link} target="_blank" rel="noopener noreferrer"
+          className="text-xs text-orange-600 underline hover:text-orange-800 mt-0.5 inline-block">
+          🗺 Abrir no Google Maps
+        </a>
+      )}
       {gerado  && <p className="text-xs text-green-600 mt-0.5">Gerado pelo app</p>}
     </div>
   </div>
@@ -71,7 +78,9 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
   const groupB = [
     { id: 'B1', doc: 'Diagrama Unifilar',              gerado: true,                      como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF' },
     { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)',   gerado: true,                      como: 'Incluído na mesma prancha da aba "Diagramas"' },
-    { id: 'B3', doc: 'Planta de Situação / Locação',   gerado: false,                     como: 'Providenciar foto aérea ou print do Google Maps com escala' },
+    { id: 'B3', doc: 'Planta de Situação / Locação',   gerado: false,
+      como: 'Capturar print do Google Maps com escala e norte indicados',
+      link: fd.endereco ? `https://maps.google.com/?q=${encodeURIComponent(fd.endereco)}` : undefined },
     { id: 'B4', doc: 'Memorial Técnico-Descritivo',    gerado: docsGerados.memorial,      como: 'Gere na aba "Memorial" e valide com o RT' },
     { id: 'B5', doc: 'TRT/ART (Responsabilidade Técnica)', gerado: false,                 como: 'RT deve assinar a ART no sistema do CREA/CFT' },
     { id: 'B6', doc: 'Data Sheets dos equipamentos',   gerado: false,                     como: 'Baixar do site do fabricante e incluir no dossiê' },

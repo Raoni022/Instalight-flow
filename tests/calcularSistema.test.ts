@@ -6,6 +6,7 @@ import type { FormData } from '../src/types';
 // Sistema: 10 painéis 550Wp, 5S×2P, monofásico, inversor 5kW
 const BASE: FormData = {
   tipoPessoa: 'fisica',
+  tipoInstalacao: 'Nova',
   nomeCliente: 'João Silva',
   cpfCnpj: '123.456.789-00',
   endereco: 'Rua Teste, 1 — Porto Alegre/RS',
@@ -38,7 +39,7 @@ const BASE: FormData = {
   dpsCATensao: '275',
   disjuntorCC: '20',
   disjuntorCA: '25',
-  aterramento: '5/8" x 2400mm', modeloStringBox: '',
+  aterramento: '5/8" x 2400mm', modeloStringBox: '', resistenciaAterramento: '',
   tipoTelhado: 'Cerâmico',
   coordenadas: '', tempMinima: '',
   nomeResponsavel: 'Eng. Carlos Souza',
