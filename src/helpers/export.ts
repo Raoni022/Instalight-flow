@@ -1,14 +1,21 @@
 /**
  * export.ts — Funções standalone de exportação de PDF
  *
- * Cada função pode ser chamada de forma independente, tanto pelo botão
- * individual de cada aba quanto pelo "Exportar Tudo" do App.
- * Fonte única de verdade — não duplicar lógica nas abas.
+ * Arquitetura em dois níveis:
+ *   _build*PDF()       — builder interno: monta o jsPDF doc + retorna filename (sem salvar)
+ *   exportar*PDFStandalone() — wrapper público: chama builder e aciona doc.save() (download)
+ *   getBlob*()         — wrapper público: chama builder e retorna Blob (usado pelo ZIP)
+ *
+ * Isso garante que a lógica de geração vive em um único lugar e pode ser usada
+ * tanto para downloads individuais quanto para empacotamento em ZIP.
  */
 
 import type { FormData, Calculos, DocsGerados } from '../types';
 import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from './pdf';
 import { makeFilename } from './filename';
+import type { jsPDF } from 'jspdf';
+
+// ── Helpers internos de build ──────────────────────────────────────────────
 
 /** Gera o texto completo da Procuração Específica. */
 export function gerarTextoProcuracao(fd: FormData, calc: Calculos): string {
@@ -47,8 +54,7 @@ Reconhecimento de firma: _______________________________ (Cartório)
 NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
 }
 
-/** Exporta a Procuração como PDF. */
-export function exportarProcuracaoPDFStandalone(fd: FormData, calc: Calculos): void {
+function _buildProcuracaoPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filename: string } {
   const doc = makePDF('p', 'a4');
   pdfHeader(doc, fd);
   const W = doc.internal.pageSize.getWidth();
@@ -61,11 +67,10 @@ export function exportarProcuracaoPDFStandalone(fd: FormData, calc: Calculos): v
   addTextBlock(doc, gerarTextoProcuracao(fd, calc), 14, 14, 52, 5.5);
   pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
-  doc.save(makeFilename('procuracao', fd));
+  return { doc, filename: makeFilename('procuracao', fd) };
 }
 
-/** Exporta o Formulário de Acesso CEEE como PDF. */
-export function exportarFormularioPDFStandalone(fd: FormData, calc: Calculos): void {
+function _buildFormularioPDF(fd: FormData, calc: Calculos): { doc: jsPDF; filename: string } {
   const doc = makePDF('p', 'a4');
   const W = doc.internal.pageSize.getWidth();
   pdfHeader(doc, fd);
@@ -120,87 +125,46 @@ export function exportarFormularioPDFStandalone(fd: FormData, calc: Calculos): v
   doc.setTextColor(120, 120, 120);
   doc.text(
     '⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',
-    14,
-    y,
+    14, y,
   );
   doc.setTextColor(30, 30, 30);
   pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
-  doc.save(makeFilename('formulario_ceee', fd));
+  return { doc, filename: makeFilename('formulario_ceee', fd) };
 }
 
-/** Exporta o Relatório de Pendências como PDF. */
-export function exportarPendenciasPDFStandalone(
+function _buildPendenciasPDF(
   fd: FormData,
   calc: Calculos,
   docsGerados: DocsGerados,
-): void {
+): { doc: jsPDF; filename: string } {
   const groupA = [
     {
-      id: 'A1',
-      doc: 'Procuração Específica',
-      gerado: docsGerados.procuracao,
+      id: 'A1', doc: 'Procuração Específica', gerado: docsGerados.procuracao,
       como: 'Gere na aba "Documentos" e peça ao cliente assinar com firma reconhecida',
     },
     {
-      id: 'A2',
-      doc: 'Formulário de Acesso CEEE',
-      gerado: docsGerados.formularioCEEE,
+      id: 'A2', doc: 'Formulário de Acesso CEEE', gerado: docsGerados.formularioCEEE,
       como: 'Gere na aba "Documentos" e leve ao protocolo CEEE',
     },
     {
-      id: 'A3',
-      doc: 'Documentos pessoais (RG+CPF / CNPJ+Contrato Social)',
-      gerado: false,
-      como:
-        fd.tipoPessoa === 'fisica'
-          ? 'Solicitar cópia do RG e CPF do titular'
-          : 'Solicitar CNPJ, Contrato Social e documento do representante',
+      id: 'A3', doc: 'Documentos pessoais (RG+CPF / CNPJ+Contrato Social)', gerado: false,
+      como: fd.tipoPessoa === 'fisica'
+        ? 'Solicitar cópia do RG e CPF do titular'
+        : 'Solicitar CNPJ, Contrato Social e documento do representante',
     },
     {
-      id: 'A4',
-      doc: 'Fatura de energia recente',
-      gerado: false,
+      id: 'A4', doc: 'Fatura de energia recente', gerado: false,
       como: 'Solicitar fatura dos últimos 3 meses',
     },
   ];
   const groupB = [
-    {
-      id: 'B1',
-      doc: 'Diagrama Unifilar',
-      gerado: true,
-      como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF',
-    },
-    {
-      id: 'B2',
-      doc: 'Diagrama Pluri (Bi/Trifilar)',
-      gerado: true,
-      como: 'Incluído na mesma prancha da aba "Diagramas"',
-    },
-    {
-      id: 'B3',
-      doc: 'Planta de Situação / Locação',
-      gerado: false,
-      como: 'Providenciar foto aérea ou print do Google Maps com escala',
-    },
-    {
-      id: 'B4',
-      doc: 'Memorial Técnico-Descritivo',
-      gerado: docsGerados.memorial,
-      como: 'Gere na aba "Memorial" e valide com o RT',
-    },
-    {
-      id: 'B5',
-      doc: 'TRT/ART (Responsabilidade Técnica)',
-      gerado: false,
-      como: 'RT deve assinar a ART no sistema do CREA/CFT',
-    },
-    {
-      id: 'B6',
-      doc: 'Data Sheets dos equipamentos',
-      gerado: false,
-      como: 'Baixar do site do fabricante e incluir no dossiê',
-    },
+    { id: 'B1', doc: 'Diagrama Unifilar',            gerado: true,                   como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF' },
+    { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)', gerado: true,                   como: 'Incluído na mesma prancha da aba "Diagramas"' },
+    { id: 'B3', doc: 'Planta de Situação / Locação', gerado: false,                  como: 'Providenciar foto aérea ou print do Google Maps com escala' },
+    { id: 'B4', doc: 'Memorial Técnico-Descritivo',  gerado: docsGerados.memorial,   como: 'Gere na aba "Memorial" e valide com o RT' },
+    { id: 'B5', doc: 'TRT/ART (Responsabilidade Técnica)', gerado: false,            como: 'RT deve assinar a ART no sistema do CREA/CFT' },
+    { id: 'B6', doc: 'Data Sheets dos equipamentos', gerado: false,                  como: 'Baixar do site do fabricante e incluir no dossiê' },
   ];
 
   const doc = makePDF('p', 'a4');
@@ -214,9 +178,7 @@ export function exportarPendenciasPDFStandalone(
   doc.setFont('helvetica', 'normal');
   doc.text(
     `Cliente: ${fd.nomeCliente || '—'} | UC: ${fd.codigoUC || '—'} | Sistema: ${calc.kWp}kWp`,
-    W / 2,
-    43,
-    { align: 'center' },
+    W / 2, 43, { align: 'center' },
   );
 
   let y = 54;
@@ -234,29 +196,16 @@ export function exportarPendenciasPDFStandalone(
     y += 8;
   };
   const item = (id: string, dname: string, done: boolean, como: string) => {
-    const status = done ? 'GERADO' : 'PENDENTE';
     doc.setFont('helvetica', 'bold');
     doc.text(`${id} — ${dname}`, 14, y);
     y += 5;
     doc.setFont('helvetica', 'normal');
-    if (done) {
-      doc.setTextColor(34, 139, 34);
-    } else {
-      doc.setTextColor(180, 100, 0);
-    }
-    doc.text(status, 14, y);
+    if (done) { doc.setTextColor(34, 139, 34); } else { doc.setTextColor(180, 100, 0); }
+    doc.text(done ? 'GERADO' : 'PENDENTE', 14, y);
     doc.setTextColor(30, 30, 30);
-    if (!done) {
-      doc.setTextColor(80, 80, 80);
-      doc.text(`  Como obter: ${como}`, 14, y + 5);
-      y += 5;
-    }
+    if (!done) { doc.setTextColor(80, 80, 80); doc.text(`  Como obter: ${como}`, 14, y + 5); y += 5; }
     y += 9;
-    if (y > H - 20) {
-      doc.addPage();
-      pdfHeader(doc, fd);
-      y = 35;
-    }
+    if (y > H - 20) { doc.addPage(); pdfHeader(doc, fd); y = 35; }
   };
 
   sect('GRUPO A — DOCUMENTOS DO CLIENTE');
@@ -270,15 +219,14 @@ export function exportarPendenciasPDFStandalone(
   doc.text('Dúvidas? Entre em contato com a Instalight.', 14, y);
   pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
-  doc.save(makeFilename('pendencias', fd));
+  return { doc, filename: makeFilename('pendencias', fd) };
 }
 
-/** Exporta o Memorial Técnico como PDF. */
-export function exportarMemorialPDFStandalone(
+function _buildMemorialPDF(
   fd: FormData,
   calc: Calculos,
   memorialIA: string,
-): void {
+): { doc: jsPDF; filename: string } {
   const doc = makePDF('p', 'a4');
   const W = doc.internal.pageSize.getWidth();
   pdfHeader(doc, fd);
@@ -290,9 +238,7 @@ export function exportarMemorialPDFStandalone(
   doc.setTextColor(100, 100, 100);
   doc.text(
     `${calc.enq} | ${calc.kWp} kWp | ${fd.tipoLigacao} | Conforme NT.00020.EQTL-06`,
-    W / 2,
-    42,
-    { align: 'center' },
+    W / 2, 42, { align: 'center' },
   );
   doc.setTextColor(30, 30, 30);
   if (memorialIA) {
@@ -303,5 +249,65 @@ export function exportarMemorialPDFStandalone(
   }
   pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
-  doc.save(makeFilename('memorial', fd));
+  return { doc, filename: makeFilename('memorial', fd) };
+}
+
+// ── API pública — download direto ─────────────────────────────────────────
+
+/** Exporta a Procuração como PDF (download imediato). */
+export function exportarProcuracaoPDFStandalone(fd: FormData, calc: Calculos): void {
+  const { doc, filename } = _buildProcuracaoPDF(fd, calc);
+  doc.save(filename);
+}
+
+/** Exporta o Formulário de Acesso CEEE como PDF (download imediato). */
+export function exportarFormularioPDFStandalone(fd: FormData, calc: Calculos): void {
+  const { doc, filename } = _buildFormularioPDF(fd, calc);
+  doc.save(filename);
+}
+
+/** Exporta o Relatório de Pendências como PDF (download imediato). */
+export function exportarPendenciasPDFStandalone(
+  fd: FormData, calc: Calculos, docsGerados: DocsGerados,
+): void {
+  const { doc, filename } = _buildPendenciasPDF(fd, calc, docsGerados);
+  doc.save(filename);
+}
+
+/** Exporta o Memorial Técnico como PDF (download imediato). */
+export function exportarMemorialPDFStandalone(
+  fd: FormData, calc: Calculos, memorialIA: string,
+): void {
+  const { doc, filename } = _buildMemorialPDF(fd, calc, memorialIA);
+  doc.save(filename);
+}
+
+// ── API pública — retorno de Blob (para dossiê ZIP) ──────────────────────
+
+/** Retorna a Procuração como Blob para uso no dossiê ZIP. */
+export function getBlobProcuracao(fd: FormData, calc: Calculos): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildProcuracaoPDF(fd, calc);
+  return { blob: doc.output('blob') as Blob, filename };
+}
+
+/** Retorna o Formulário CEEE como Blob para uso no dossiê ZIP. */
+export function getBlobFormulario(fd: FormData, calc: Calculos): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildFormularioPDF(fd, calc);
+  return { blob: doc.output('blob') as Blob, filename };
+}
+
+/** Retorna o Relatório de Pendências como Blob para uso no dossiê ZIP. */
+export function getBlobPendencias(
+  fd: FormData, calc: Calculos, docsGerados: DocsGerados,
+): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildPendenciasPDF(fd, calc, docsGerados);
+  return { blob: doc.output('blob') as Blob, filename };
+}
+
+/** Retorna o Memorial Técnico como Blob para uso no dossiê ZIP. */
+export function getBlobMemorial(
+  fd: FormData, calc: Calculos, memorialIA: string,
+): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildMemorialPDF(fd, calc, memorialIA);
+  return { blob: doc.output('blob') as Blob, filename };
 }

@@ -160,13 +160,16 @@ Configuração: ${nSerie} módulos em série × ${nPar} strings em paralelo = ${
 | Parâmetro                                  | Valor por String         |
 |--------------------------------------------|--------------------------|
 | Tensão de circuito aberto Voc (string)     | ${calc.vocStr} V         |
-| Voc máximo (fator segurança NBR 16690 ×1,25)| ${calc.vocMax} V        |
+| Voc máximo — fator 1,25 (NBR 16690)        | ${calc.vocMax} V         |
+${calc.vocMaxCorr !== null
+  ? `| Voc máximo — coef. real γ=${fd.coefTempVoc}%/°C @ ${fd.tempMinima}°C | ${calc.vocMaxCorr} V (NBR 16690 §6.3) |`
+  : `| Voc máximo — método preciso (§6.3)         | Preencha Coef.Temp.Voc + Temp.mín. |`}
 | Corrente de curto-circuito Isc (string)    | ${calc.iscStr} A         |
 | Icc total (${nPar} strings paralelo)       | ${calc.iccTotal} A       |
 | Corrente de dimensionamento (Icc × 1,25)   | ${calc.iccNorma} A       |
 | Potência por string                        | ${nSerie && wpPainel ? (num(nSerie) * num(wpPainel) / 1000).toFixed(2) : '[CALCULAR]'} kWp |
 
-Nota: Voc máximo de ${calc.vocMax} V inferior ao limite de 1000 V estabelecido pela NBR 16690 para instalações de baixa tensão.
+Nota: Voc máximo de ${calc.vocMaxCorr ?? calc.vocMax} V inferior ao limite de 1000 V estabelecido pela NBR 16690 para instalações de baixa tensão.
 
 5.3 Queda de Tensão em Corrente Contínua
 
@@ -223,6 +226,8 @@ Tipo de cobertura: ${fd.tipoTelhado}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 8. DIMENSIONAMENTO DAS PROTEÇÕES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+String Box CC: ${fd.modeloStringBox || '(modelo a confirmar com o instalador)'}
+
 8.1 Disjuntor de Proteção CC (geral, antes do inversor)
 • Corrente de dimensionamento — Icc_total × 1,25: ${calc.iDjCCMin} A
 • Disjuntor CC selecionado: ${djCC} A (${num(djCC) >= calc.iDjCCMin ? '✔ atende' : '⚠ verificar'})

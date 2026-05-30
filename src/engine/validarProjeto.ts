@@ -52,16 +52,19 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
 
   // ── Voc_max vs tensão máxima CC do inversor ───────────────────
   const vInCC = num(fd.tensaoEntradaCC, 0);
+  // Usa o método preciso (coeficiente real) quando disponível; fallback para fator 1,25
+  const vocMaxEfetivo = calc.vocMaxCorr ?? calc.vocMax;
   if (vInCC > 0) {
-    if (calc.vocMax > vInCC) {
+    if (vocMaxEfetivo > vInCC) {
       e('SFV06',
-        `Voc_max calculado (${calc.vocMax} V) supera a tensão máxima CC do inversor (${vInCC} V). ` +
+        `Voc_max calculado (${vocMaxEfetivo} V${calc.vocMaxCorr !== null ? ' — coef. real' : ' — fator 1,25'}) ` +
+        `supera a tensão máxima CC do inversor (${vInCC} V). ` +
         `Risco de dano permanente ao inversor. Reduza painéis em série. [NBR 16690 §6.3]`
       );
     }
-    if (calc.vocMax < vInCC * 0.5) {
+    if (vocMaxEfetivo < vInCC * 0.5) {
       w('SFV07',
-        `Voc_max (${calc.vocMax} V) é inferior a 50% da tensão máxima do inversor (${vInCC} V). ` +
+        `Voc_max (${vocMaxEfetivo} V) é inferior a 50% da tensão máxima do inversor (${vInCC} V). ` +
         `Verifique se a string está dentro da janela de MPPT do equipamento.`
       );
     }
@@ -131,6 +134,31 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
         `Inversor superdimensionado para a geração instalada.`
       );
     }
+  }
+
+  // ── Janela MPPT do inversor (requer vmppString + faixas preenchidas) ─────
+  const mpptMin = num(fd.faixaMPPTMin, 0);
+  const mpptMax = num(fd.faixaMPPTMax, 0);
+  if (calc.vmppString > 0 && mpptMin > 0 && calc.vmppString < mpptMin) {
+    e('SFV12',
+      `Vmpp da string (${calc.vmppString} V) abaixo do limite mínimo MPPT do inversor (${mpptMin} V). ` +
+      `O inversor não conseguirá rastrear o ponto de máxima potência. Aumente os painéis em série.`
+    );
+  }
+  if (calc.vmppString > 0 && mpptMax > 0 && calc.vmppString > mpptMax) {
+    e('SFV13',
+      `Vmpp da string (${calc.vmppString} V) acima do limite máximo MPPT do inversor (${mpptMax} V). ` +
+      `O inversor não conseguirá rastrear o ponto de máxima potência. Reduza os painéis em série.`
+    );
+  }
+
+  // ── Tensão de partida do inversor ─────────────────────────────
+  const tPartida = num(fd.tensaoPartidaCC, 0);
+  if (calc.vocStr > 0 && tPartida > 0 && calc.vocStr < tPartida) {
+    e('SFV14',
+      `Voc da string (${calc.vocStr} V) abaixo da tensão de partida do inversor (${tPartida} V). ` +
+      `O inversor não conseguirá ligar. Aumente os painéis em série ou revise o modelo do inversor.`
+    );
   }
 
   // ── Informações gerais ────────────────────────────────────────

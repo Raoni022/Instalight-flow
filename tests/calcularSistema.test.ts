@@ -20,7 +20,7 @@ const BASE: FormData = {
   paineisSerie: '5',
   stringParalelo: '2',
   vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
-  eficienciaPainel: '', coefTempVoc: '',
+  eficienciaPainel: '', coefTempVoc: '', tempMinima: '',
   modeloInversor: 'Growatt MIN 5000TL-X',
   potenciaCAkW: '5',
   tensaoEntradaCC: '600',
@@ -38,9 +38,9 @@ const BASE: FormData = {
   dpsCATensao: '275',
   disjuntorCC: '20',
   disjuntorCA: '25',
-  aterramento: '5/8" x 2400mm',
+  aterramento: '5/8" x 2400mm', modeloStringBox: '',
   tipoTelhado: 'Cerâmico',
-  coordenadas: '',
+  coordenadas: '', tempMinima: '',
   nomeResponsavel: 'Eng. Carlos Souza',
   numeroCRT: '12345-D/RS',
   numART: 'ART-2024-001',
@@ -214,5 +214,20 @@ describe('calcularSistema — percentualAtendimento', () => {
     const c = calcularSistema({ ...BASE, consumoMensalKwh: '2000' });
     expect(c.percentualAtendimento).toBeGreaterThan(0);
     expect(c.percentualAtendimento!).toBeLessThan(100);
+  });
+});
+
+describe('calcularSistema — vocMaxCorr (coeficiente real de temperatura)', () => {
+  it('vocMaxCorr calculado quando coefTempVoc e tempMinima preenchidos', () => {
+    // γ = -0.29%/°C; Tmin = -5°C → fator = 1 + 0.0029 × (25-(-5)) = 1 + 0.087 = 1.087
+    // vocStr = 5 × 41 = 205V → vocMaxCorr = 205 × 1.087 ≈ 222.84V
+    const c = calcularSistema({ ...BASE, coefTempVoc: '-0.29', tempMinima: '-5' });
+    expect(c.vocMaxCorr).not.toBeNull();
+    expect(c.vocMaxCorr!).toBeCloseTo(205 * 1.087, 0);
+  });
+
+  it('vocMaxCorr null quando coefTempVoc não informado', () => {
+    const c = calcularSistema({ ...BASE, coefTempVoc: '', tempMinima: '-5' });
+    expect(c.vocMaxCorr).toBeNull();
   });
 });

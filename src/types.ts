@@ -64,10 +64,12 @@ export interface FormData {
   disjuntorCC: string;
   disjuntorCA: string;
   aterramento: string;
+  modeloStringBox: string; // Modelo da string box CC (opcional)
 
   // INSTALAÇÃO
   tipoTelhado: TipoTelhado;
   coordenadas: string;
+  tempMinima: string; // Temperatura mínima local (°C) — para Voc_max real NBR 16690 §6.3
 
   // RESPONSÁVEL TÉCNICO
   nomeResponsavel: string;
@@ -153,6 +155,11 @@ export interface Calculos {
   dvccOpV: number | null;
   /** ΔV CC operacional em % referenciado a Vmpp — null se Vmpp/Impp não informados */
   dvccOpP: number | null;
+  /**
+   * Voc_max calculado com coeficiente real de temperatura (NBR 16690 §6.3, método preciso).
+   * null quando coefTempVoc ou tempMinima não estão preenchidos — usa vocMax (fator 1,25) nesse caso.
+   */
+  vocMaxCorr: number | null;
 }
 
 // ── Validação ─────────────────────────────────────────────────────────────

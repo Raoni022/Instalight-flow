@@ -15,14 +15,8 @@ import React, {
 
 import { calcularSistema }   from './engine/calcularSistema';
 import { validarProjeto }    from './engine/validarProjeto';
-import { makeFilename }      from './helpers/filename';
 import { LS_KEY }            from './constants';
-import {
-  exportarProcuracaoPDFStandalone,
-  exportarFormularioPDFStandalone,
-  exportarPendenciasPDFStandalone,
-  exportarMemorialPDFStandalone,
-} from './helpers/export';
+import { exportarDossieZip } from './helpers/zip';
 
 import type { FormData, Toast, DocsGerados } from './types';
 
@@ -49,8 +43,8 @@ export const INITIAL_FORM: FormData = {
   comprimentoCabosCC: '', comprimentoCabosCA: '',
   dpsCCTipo: 'Tipo 2', dpsCCTensao: '1000',
   dpsCATipo: 'Tipo 2', dpsCATensao: '275',
-  disjuntorCC: '', disjuntorCA: '', aterramento: '',
-  tipoTelhado: 'Cerâmico', coordenadas: '',
+  disjuntorCC: '', disjuntorCA: '', aterramento: '', modeloStringBox: '',
+  tipoTelhado: 'Cerâmico', coordenadas: '', tempMinima: '',
   nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
@@ -165,7 +159,7 @@ export default function App() {
     }
   }, []);
 
-  // ── Exportação em massa ──
+  // ── Exportação em massa (dossiê ZIP) ──
   const exportarTudo = useCallback(async () => {
     const errosCriticos = validacoes.filter((x) => x.nivel === 'erro');
     if (errosCriticos.length > 0) {
@@ -176,36 +170,17 @@ export default function App() {
       return;
     }
 
-    setToast({ message: 'Exportando todos os documentos…', type: 'info' });
-    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    setToast({ message: 'Gerando dossiê ZIP…', type: 'info' });
+    const svgString = svgRef.current
+      ? new XMLSerializer().serializeToString(svgRef.current)
+      : '';
 
-    // 1 — SVG da prancha elétrica
-    if (svgRef.current) {
-      const s = new XMLSerializer().serializeToString(svgRef.current);
-      const b = new Blob([s], { type: 'image/svg+xml' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(b);
-      a.download = makeFilename('prancha', formData, 'svg');
-      a.click();
-      await delay(400);
+    try {
+      await exportarDossieZip(formData, calc, memorialIA, docsGerados, svgString);
+      setToast({ message: '✅ Dossiê ZIP exportado com sucesso!', type: 'success' });
+    } catch (err) {
+      setToast({ message: 'Erro ao gerar ZIP: ' + String(err), type: 'error' });
     }
-
-    // 2 — Memorial técnico
-    exportarMemorialPDFStandalone(formData, calc, memorialIA);
-    await delay(400);
-
-    // 3 — Procuração específica
-    exportarProcuracaoPDFStandalone(formData, calc);
-    await delay(400);
-
-    // 4 — Formulário de acesso CEEE
-    exportarFormularioPDFStandalone(formData, calc);
-    await delay(400);
-
-    // 5 — Relatório de pendências
-    exportarPendenciasPDFStandalone(formData, calc, docsGerados);
-
-    setToast({ message: '✅ Todos os documentos exportados com sucesso!', type: 'success' });
   }, [formData, calc, memorialIA, docsGerados, validacoes]);
 
   // ── Render ────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ const BASE: FormData = {
   paineisSerie: '5',
   stringParalelo: '2',
   vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
-  eficienciaPainel: '', coefTempVoc: '',
+  eficienciaPainel: '', coefTempVoc: '', tempMinima: '',
   modeloInversor: 'Growatt MIN 5000TL-X',
   potenciaCAkW: '5',
   tensaoEntradaCC: '600',
@@ -38,9 +38,9 @@ const BASE: FormData = {
   dpsCATensao: '275',
   disjuntorCC: '40',   // ≥ iccNorma ≈ 33.53 A (1,25 × Icc_total)
   disjuntorCA: '25',   // ≥ iNomCA  ≈ 22.73 A
-  aterramento: '5/8" x 2400mm',
+  aterramento: '5/8" x 2400mm', modeloStringBox: '',
   tipoTelhado: 'Cerâmico',
-  coordenadas: '',
+  coordenadas: '', tempMinima: '',
   nomeResponsavel: 'Eng. Carlos Souza',
   numeroCRT: '12345-D/RS',
   numART: 'ART-2024-001',
@@ -234,5 +234,45 @@ describe('validarProjeto — DPS', () => {
   it('DPS02: sem aviso quando tensão DPS CA adequada (≥ 242 V)', () => {
     // BASE.dpsCATensao = '275' > 242V → ok
     expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'DPS02')).toBe(false);
+  });
+});
+
+describe('validarProjeto — Janela MPPT (SFV12/SFV13)', () => {
+  it('SFV12: erro quando Vmpp da string abaixo do mínimo MPPT', () => {
+    // vmppString = 38V × 5 painéis = 190V < faixaMPPTMin = 200V → erro
+    const fd = { ...BASE, vmppUnitario: '38', faixaMPPTMin: '200', faixaMPPTMax: '500' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV12')).toBe(true);
+  });
+
+  it('SFV12: sem erro quando Vmpp dentro do limite mínimo MPPT', () => {
+    // vmppString = 38 × 5 = 190V ≥ faixaMPPTMin = 150V → ok
+    const fd = { ...BASE, vmppUnitario: '38', faixaMPPTMin: '150', faixaMPPTMax: '500' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV12')).toBe(false);
+  });
+
+  it('SFV13: erro quando Vmpp da string acima do máximo MPPT', () => {
+    // vmppString = 38 × 5 = 190V > faixaMPPTMax = 180V → erro
+    const fd = { ...BASE, vmppUnitario: '38', faixaMPPTMin: '100', faixaMPPTMax: '180' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV13')).toBe(true);
+  });
+
+  it('SFV13: sem erro quando Vmpp dentro do limite máximo MPPT', () => {
+    // vmppString = 38 × 5 = 190V ≤ faixaMPPTMax = 600V → ok
+    const fd = { ...BASE, vmppUnitario: '38', faixaMPPTMin: '100', faixaMPPTMax: '600' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV13')).toBe(false);
+  });
+});
+
+describe('validarProjeto — Tensão de partida do inversor (SFV14)', () => {
+  it('SFV14: erro quando Voc da string abaixo da tensão de partida', () => {
+    // vocStr = 5 × 41 = 205V < tensaoPartidaCC = 250V → erro
+    const fd = { ...BASE, tensaoPartidaCC: '250' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV14')).toBe(true);
+  });
+
+  it('SFV14: sem erro quando Voc da string acima da tensão de partida', () => {
+    // vocStr = 205V > tensaoPartidaCC = 100V → ok
+    const fd = { ...BASE, tensaoPartidaCC: '100' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(fd)), 'SFV14')).toBe(false);
   });
 });

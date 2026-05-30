@@ -43,8 +43,22 @@ export function calcularSistema(fd: FormData): Calculos {
    */
   const vocPP  = num(fd.vocUnitario) > 0 ? num(fd.vocUnitario) : VOC_PP;
   const vocStr = ns * vocPP;
-  /** Voc_max com fator de temperatura 1,25 — NBR 16690 §6.3 */
+  /** Voc_max com fator de temperatura 1,25 — NBR 16690 §6.3 (método simplificado / fallback) */
   const vocMax = parseFloat((vocStr * 1.25).toFixed(2));
+
+  /**
+   * Voc_max com coeficiente real de temperatura — NBR 16690 §6.3, método preciso.
+   * Fórmula: Voc_str × (1 + |γ| × (25 − T_min))
+   * γ = coefTempVoc em %/°C (valor negativo, ex: −0,29); T_min = temperatura mínima local (°C).
+   * null quando algum dos dois campos não estiver preenchido — validarProjeto usa (vocMaxCorr ?? vocMax).
+   */
+  const coefGamma  = num(fd.coefTempVoc);
+  const tMinStr    = fd.tempMinima?.trim();
+  const tMin       = tMinStr ? num(fd.tempMinima) : NaN;
+  const vocMaxCorr: number | null =
+    (coefGamma !== 0 && !isNaN(tMin) && vocStr > 0)
+      ? parseFloat((vocStr * (1 + (Math.abs(coefGamma) / 100) * (25 - tMin))).toFixed(2))
+      : null;
 
   // ══════════════════════════════════════════════════════════════
   // CORRENTES CC
@@ -187,5 +201,6 @@ export function calcularSistema(fd: FormData): Calculos {
     co2EvitadoAnual, arvoresEquivalente, co2Em25Anos,
     percentualAtendimento,
     vmppString, imppTotal, dvccOpV, dvccOpP,
+    vocMaxCorr,
   };
 }

@@ -142,6 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Disjuntor CC (A)" name="disjuntorCC" value={fd.disjuntorCC} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Disjuntor CA (A)" name="disjuntorCA" value={fd.disjuntorCA} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Aterramento" name="aterramento" value={fd.aterramento} onChange={onChange} aiFields={aiFilledFields} />
+        <FormField label="Modelo da String Box (opcional)" name="modeloStringBox" value={fd.modeloStringBox} onChange={onChange}
+          placeholder="Ex: Solis PV-QB4-20-40" aiFields={aiFilledFields} />
       </CollapsibleSection>
 
       {/* ── INSTALAÇÃO ── */}
@@ -150,6 +152,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           options={['Cerâmico', 'Metálico', 'Fibrocimento', 'Laje', 'Solo']} aiFields={aiFilledFields} />
         <FormField label="Coordenadas GPS (opcional)" name="coordenadas" value={fd.coordenadas} onChange={onChange}
           placeholder="Ex: 30.0330°S, 51.2300°W" aiFields={aiFilledFields} />
+        <FormField label="Temp. mínima local (°C)" name="tempMinima" type="number" value={fd.tempMinima} onChange={onChange}
+          placeholder="Ex: -5 (RS), 5 (SP)" aiFields={aiFilledFields} />
+        <p className="text-xs text-slate-400 italic px-1 pb-1">
+          Permite calcular Voc_max com coeficiente real do datasheet (NBR 16690 §6.3).
+          Se não preenchida, usa o fator conservador 1,25.
+        </p>
       </CollapsibleSection>
 
       {/* ── EMPRESA INSTALADORA ── */}
