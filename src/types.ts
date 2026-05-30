@@ -27,12 +27,27 @@ export interface FormData {
   paineisSerie: string;
   stringParalelo: string;
 
+  // MÓDULO FV — dados elétricos do datasheet (opcionais; usados pelo motor de cálculo)
+  vocUnitario:      string; // Voc por módulo (V)
+  iscUnitario:      string; // Isc por módulo (A)
+  vmppUnitario:     string; // Vmpp por módulo (V)
+  imppUnitario:     string; // Impp por módulo (A)
+  eficienciaPainel: string; // Eficiência (%)
+  coefTempVoc:      string; // Coef. temperatura Voc (%/°C)
+
   // INVERSOR
   modeloInversor: string;
   potenciaCAkW: string;
   tensaoEntradaCC: string;
   tensaoSaidaCA: string;
   quantidadeInversores: string;
+
+  // INVERSOR — dados extras do datasheet (opcionais)
+  numMPPT:         string; // Número de entradas MPPT
+  faixaMPPTMin:    string; // Tensão mínima MPPT (V)
+  faixaMPPTMax:    string; // Tensão máxima MPPT (V)
+  tensaoPartidaCC: string; // Tensão de partida CC (V)
+  eficienciaInv:   string; // Eficiência máxima (%)
 
   // CABOS E DIMENSIONAMENTO
   secaoCaboCC: string;
@@ -129,6 +144,15 @@ export interface Calculos {
   co2Em25Anos: number;
   /** Percentual do consumo anual atendido pela geração (null se consumo não informado) */
   percentualAtendimento: number | null;
+
+  /** Vmpp da string completa (V) — 0 se vmppUnitario não informado */
+  vmppString: number;
+  /** Impp total de todas as strings (A) — 0 se imppUnitario não informado */
+  imppTotal: number;
+  /** ΔV CC operacional em V (usa Impp) — null se Impp não informado */
+  dvccOpV: number | null;
+  /** ΔV CC operacional em % referenciado a Vmpp — null se Vmpp/Impp não informados */
+  dvccOpP: number | null;
 }
 
 // ── Validação ─────────────────────────────────────────────────────────────

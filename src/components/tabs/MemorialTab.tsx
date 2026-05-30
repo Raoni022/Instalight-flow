@@ -10,7 +10,7 @@
 import React from 'react';
 import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
-import { makePDF, pdfHeader, pdfFooter, addTextBlock } from '../../helpers/pdf';
+import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
 import { buildMemorialTemplate, aplicarTextosBasicos } from '../../helpers/memorial';
 
@@ -128,6 +128,7 @@ ${template}`;
       doc.setTextColor(150, 150, 150);
       doc.text('Gere o memorial primeiro.', 14, 55);
     }
+    pdfRTWarning(doc);
     pdfFooter(doc, fd, 1, 1);
     doc.save(makeFilename('memorial', fd));
   };

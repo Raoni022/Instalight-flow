@@ -7,7 +7,7 @@
  */
 
 import type { FormData, Calculos, DocsGerados } from '../types';
-import { makePDF, pdfHeader, pdfFooter, addTextBlock } from './pdf';
+import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from './pdf';
 import { makeFilename } from './filename';
 
 /** Gera o texto completo da Procuração Específica. */
@@ -59,6 +59,7 @@ export function exportarProcuracaoPDFStandalone(fd: FormData, calc: Calculos): v
   doc.setFont('helvetica', 'normal');
   doc.text('Art. 9° — REN ANEEL n° 1.000/2021', W / 2, 42, { align: 'center' });
   addTextBlock(doc, gerarTextoProcuracao(fd, calc), 14, 14, 52, 5.5);
+  pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
   doc.save(makeFilename('procuracao', fd));
 }
@@ -123,6 +124,7 @@ export function exportarFormularioPDFStandalone(fd: FormData, calc: Calculos): v
     y,
   );
   doc.setTextColor(30, 30, 30);
+  pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
   doc.save(makeFilename('formulario_ceee', fd));
 }
@@ -266,6 +268,7 @@ export function exportarPendenciasPDFStandalone(
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
   doc.text('Dúvidas? Entre em contato com a Instalight.', 14, y);
+  pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
   doc.save(makeFilename('pendencias', fd));
 }
@@ -298,6 +301,7 @@ export function exportarMemorialPDFStandalone(
     doc.setTextColor(150, 150, 150);
     doc.text('Memorial não gerado — acesse a aba Memorial para gerá-lo.', 14, 55);
   }
+  pdfRTWarning(doc);
   pdfFooter(doc, fd, 1, 1);
   doc.save(makeFilename('memorial', fd));
 }

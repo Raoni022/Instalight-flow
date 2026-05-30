@@ -140,15 +140,15 @@ A potência de injeção do gerador (${calc.kWtCA} kW CA) ${calc.kWtCA <= calc.p
 |------------------------------------|--------------------------|
 | Fabricante / Modelo                | ${modPainel}             |
 | Potência nominal (Pn)              | ${wpPainel} Wp           |
-| Tensão de máxima potência (Vmp)    | [INSERIR] V              |
-| Corrente de máxima potência (Imp)  | [INSERIR] A              |
-| Tensão de circuito aberto (Voc)    | ${calc.vocStr > 0 ? (calc.vocStr / Math.max(1, num(nSerie))).toFixed(1) : '[INSERIR]'} V (unitário) |
-| Corrente de curto-circuito (Isc)   | ${calc.iscStr} A (unitário) |
-| Eficiência                         | [INSERIR] %              |
+| Tensão de máxima potência (Vmp)    | ${fd.vmppUnitario || '[INSERIR]'} V |
+| Corrente de máxima potência (Imp)  | ${fd.imppUnitario || '[INSERIR]'} A |
+| Tensão de circuito aberto (Voc)    | ${fd.vocUnitario  || (calc.vocStr > 0 ? (calc.vocStr / Math.max(1, num(nSerie))).toFixed(1) : '[INSERIR]')} V (unitário) |
+| Corrente de curto-circuito (Isc)   | ${fd.iscUnitario  || calc.iscStr} A (unitário) |
+| Eficiência                         | ${fd.eficienciaPainel || '[INSERIR]'} % |
 | Dimensões (C × L × E)             | [INSERIR] mm             |
 | Peso                               | [INSERIR] kg             |
 | Temperatura de operação nominal    | [INSERIR] °C             |
-| Coef. temperatura (Pmax)           | [INSERIR] %/°C           |
+| Coef. temperatura Voc              | ${fd.coefTempVoc  || '[INSERIR]'} %/°C |
 | Tensão máxima do sistema           | 1000 V                   |
 | Quantidade total                   | ${nPaineis} módulos      |
 | Potência total CC instalada        | ${calc.kWp} kWp          |
@@ -180,7 +180,15 @@ Onde:
   ΔV(CC) = (2 × ${fd.comprimentoCabosCC || '?'} × ${calc.iccNorma} × 0,01724) / ${fd.secaoCaboCC || '6'} = ${calc.dvccV} V
   ΔV(CC)% = ${calc.dvccV} / ${calc.vocStr} × 100 = ${calc.dvccP}%
 
-${calc.dvccP <= 3 ? '✔ Queda de tensão CC dentro do limite admissível de 3% (NBR 16690).' : '⚠ Verificar bitola do cabo CC — queda superior a 3% (NBR 16690).'}
+${calc.dvccP <= 3 ? '✔ Queda de tensão CC (dimensionamento) dentro do limite de 3% (NBR 16690).' : '⚠ Verificar bitola do cabo CC — queda de dimensionamento superior a 3% (NBR 16690).'}
+${calc.dvccOpP !== null
+  ? `
+ΔV CC Operacional (ponto de máxima potência — MPPT):
+  I = ${calc.imppTotal} A (Impp total) | V_ref = ${calc.vmppString} V (Vmpp string)
+  ΔV(CC_op) = (2 × ${fd.comprimentoCabosCC || '?'} × ${calc.imppTotal} × 0,01724) / ${fd.secaoCaboCC || '6'} = ${calc.dvccOpV} V
+  ΔV(CC_op)% = ${calc.dvccOpP}% (referenciado a Vmpp = ${calc.vmppString} V)
+${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3%.' : '⚠ Queda operacional superior a 3% — avaliar aumento da bitola CC.'}`
+  : '(Preencha Vmpp e Impp no formulário para calcular ΔV operacional)'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 6. DIMENSIONAMENTO DO INVERSOR
@@ -193,14 +201,14 @@ ${calc.dvccP <= 3 ? '✔ Queda de tensão CC dentro do limite admissível de 3% 
 | Potência CA total                     | ${calc.kWtCA} kW         |
 | Máxima tensão CC de entrada (Vcc-máx) | ${VinCC} V               |
 | Tensão nominal de saída CA            | ${VoutCA} V              |
-| Número de entradas MPPT               | [INSERIR]                |
-| Faixa de tensão MPPT                  | [INSERIR] V              |
-| Tensão de partida CC                  | [INSERIR] V              |
+| Número de entradas MPPT               | ${fd.numMPPT        || '[INSERIR]'} |
+| Faixa de tensão MPPT                  | ${fd.faixaMPPTMin && fd.faixaMPPTMax ? `${fd.faixaMPPTMin}–${fd.faixaMPPTMax} V` : '[INSERIR]'} |
+| Tensão de partida CC                  | ${fd.tensaoPartidaCC || '[INSERIR]'} V |
 | Corrente nominal saída CA             | ${calc.iNomCA} A         |
 | Corrente máxima saída CA              | ${calc.iDimCA} A         |
 | THD de corrente                       | < 3%                     |
 | Fator de potência                     | 1,0                      |
-| Eficiência máxima                     | [INSERIR] %              |
+| Eficiência máxima                     | ${fd.eficienciaInv  || '[INSERIR]'} % |
 | Grau de proteção                      | IP65 (mínimo)            |
 | Proteção anti-ilhamento               | Integrada (NBR IEC 62116)|
 

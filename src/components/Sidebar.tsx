@@ -81,6 +81,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="ml-2 text-slate-500">Enq.:</span>
           <span className="font-semibold text-orange-600 text-xs">{calc.enq}</span>
         </div>
+        {/* Datasheet do módulo */}
+        <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Datasheet do Módulo</p>
+        <p className="text-xs text-slate-400 mb-1 italic">Valores do datasheet (STC). Se não preenchidos, o motor usa estimativas.</p>
+        <FormField label="Voc unitário (V)" name="vocUnitario" value={fd.vocUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 46.0" />
+        <FormField label="Isc unitário (A)" name="iscUnitario" value={fd.iscUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 13.93" />
+        <FormField label="Vmpp unitário (V)" name="vmppUnitario" value={fd.vmppUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 38.2" />
+        <FormField label="Impp unitário (A)" name="imppUnitario" value={fd.imppUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 13.05" />
+        <FormField label="Eficiência (%)" name="eficienciaPainel" value={fd.eficienciaPainel} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 21.3" />
+        <FormField label="Coef. Temp. Voc (%/°C)" name="coefTempVoc" value={fd.coefTempVoc} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -0.27" />
+        {(calc.vmppString > 0 || calc.imppTotal > 0) && (
+          <div className="text-xs text-slate-500 bg-slate-50 rounded p-2 space-y-0.5">
+            {calc.vmppString > 0 && <div>Vmpp string: <strong>{calc.vmppString} V</strong></div>}
+            {calc.imppTotal  > 0 && <div>Impp total:  <strong>{calc.imppTotal} A</strong></div>}
+            {calc.dvccOpP !== null && <div>ΔV CC operacional: <strong>{calc.dvccOpP}%</strong></div>}
+          </div>
+        )}
       </CollapsibleSection>
 
       {/* ── INVERSOR ── */}
@@ -93,6 +109,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="bg-orange-50 rounded px-2 py-1 text-xs text-orange-700">
           Potência CA total: <strong>{calc.kWtCA} kW</strong>
         </div>
+        {/* Dados extras do inversor */}
+        <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Dados Extras (Datasheet)</p>
+        <FormField label="Nº Entradas MPPT" name="numMPPT" value={fd.numMPPT} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 2" />
+        <FormField label="Vmpp mín. (V)" name="faixaMPPTMin" value={fd.faixaMPPTMin} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 80" />
+        <FormField label="Vmpp máx. (V)" name="faixaMPPTMax" value={fd.faixaMPPTMax} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 550" />
+        <FormField label="Tensão partida CC (V)" name="tensaoPartidaCC" value={fd.tensaoPartidaCC} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 90" />
+        <FormField label="Eficiência máx. (%)" name="eficienciaInv" value={fd.eficienciaInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 97.6" />
       </CollapsibleSection>
 
       {/* ── CABOS ── */}

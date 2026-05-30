@@ -36,16 +36,27 @@ export function calcularSistema(fd: FormData): Calculos {
   // ══════════════════════════════════════════════════════════════
   // TENSÕES DE STRING
   // ══════════════════════════════════════════════════════════════
-  const ns     = num(fd.paineisSerie);
-  const vocStr = ns * VOC_PP;
+  const ns  = num(fd.paineisSerie);
+  /**
+   * Voc por painel: usa valor real do datasheet se informado;
+   * caso contrário, usa a constante VOC_PP (estimativa conservadora).
+   */
+  const vocPP  = num(fd.vocUnitario) > 0 ? num(fd.vocUnitario) : VOC_PP;
+  const vocStr = ns * vocPP;
   /** Voc_max com fator de temperatura 1,25 — NBR 16690 §6.3 */
   const vocMax = parseFloat((vocStr * 1.25).toFixed(2));
 
   // ══════════════════════════════════════════════════════════════
   // CORRENTES CC
   // ══════════════════════════════════════════════════════════════
-  const sp       = num(fd.stringParalelo, 1);
-  const iscStr   = wp > 0 ? parseFloat((wp / VOC_PP).toFixed(2)) : 0;
+  const sp = num(fd.stringParalelo, 1);
+  /**
+   * Isc por string: usa valor real do datasheet se informado;
+   * caso contrário, estima como Wp / Voc (≈ Imp — conservador).
+   */
+  const iscStr   = num(fd.iscUnitario) > 0
+    ? num(fd.iscUnitario)
+    : (wp > 0 ? parseFloat((wp / vocPP).toFixed(2)) : 0);
   const iccTotal = parseFloat((iscStr * sp).toFixed(2));
   /** Corrente de dimensionamento CC = 1,25 × Isc — NBR 16690 §7.3 */
   const iccNorma = parseFloat((iccTotal * 1.25).toFixed(2));
@@ -83,10 +94,28 @@ export function calcularSistema(fd: FormData): Calculos {
   const caL = num(fd.comprimentoCabosCA, 10); // m
   const caS = num(fd.secaoCaboCA);            // mm²  (0 se vazio — guarda dvcaV=0)
 
-  /** ΔV_CC = (2 × L × I × ρ) / S — circuito completo ida+volta */
+  /** ΔV_CC = (2 × L × I × ρ) / S — circuito completo ida+volta (usa iccNorma para dimensionamento do cabo) */
   const dvccV = ccS > 0 ? parseFloat(((2 * ccL * iccNorma * RHO) / ccS).toFixed(3)) : 0;
   const vCC   = vocStr > 0 ? vocStr : 1;
   const dvccP = parseFloat(((dvccV / vCC) * 100).toFixed(2));
+
+  /**
+   * ΔV_CC operacional — usa Impp e Vmpp do datasheet quando disponíveis.
+   * Representa a queda real em ponto de máxima potência (MPPT).
+   * Uso no memorial: comparação com o ΔV de dimensionamento (iccNorma).
+   */
+  const vmppString = num(fd.vmppUnitario) > 0
+    ? parseFloat((num(fd.vmppUnitario) * ns).toFixed(2))
+    : 0;
+  const imppTotal = num(fd.imppUnitario) > 0
+    ? parseFloat((num(fd.imppUnitario) * sp).toFixed(2))
+    : 0;
+  const dvccOpV = (ccS > 0 && imppTotal > 0)
+    ? parseFloat(((2 * ccL * imppTotal * RHO) / ccS).toFixed(3))
+    : null;
+  const dvccOpP = (dvccOpV !== null && vmppString > 0)
+    ? parseFloat(((dvccOpV / vmppString) * 100).toFixed(2))
+    : null;
 
   /** ΔV_CA = (2 × L × I × ρ) / S */
   const dvcaV = caS > 0 ? parseFloat(((2 * caL * iNomCA * RHO) / caS).toFixed(3)) : 0;
@@ -157,5 +186,6 @@ export function calcularSistema(fd: FormData): Calculos {
     potDispKVA, potDispKW,
     co2EvitadoAnual, arvoresEquivalente, co2Em25Anos,
     percentualAtendimento,
+    vmppString, imppTotal, dvccOpV, dvccOpP,
   };
 }

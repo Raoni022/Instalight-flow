@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
-import { makePDF, pdfHeader, pdfFooter, addTextBlock } from '../../helpers/pdf';
+import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
 import { gerarTextoProcuracao } from '../../helpers/export';
 
@@ -74,6 +74,7 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
     doc.setFont('helvetica', 'normal');
     doc.text('Art. 9° — REN ANEEL n° 1.000/2021', W / 2, 42, { align: 'center' });
     addTextBlock(doc, procuracao, 14, 14, 52, 5.5);
+    pdfRTWarning(doc);
     pdfFooter(doc, fd, 1, 1);
     doc.save(makeFilename('procuracao', fd));
   };
@@ -130,6 +131,7 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
     doc.setTextColor(120, 120, 120);
     doc.text('⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.', 14, y);
     doc.setTextColor(30, 30, 30);
+    pdfRTWarning(doc);
     pdfFooter(doc, fd, 1, 1);
     doc.save(makeFilename('formulario_ceee', fd));
     setDocsGerados((p) => ({ ...p, formularioCEEE: true }));
@@ -255,7 +257,15 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
               </button>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
-              ⚠️ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.
+              ⚠️ Modelo baseado na <strong>NT.00020.EQTL-06 (rev. dez/2025)</strong>.
+              {' '}Verifique se há versão mais recente no{' '}
+              <a
+                href="https://www.ceeeequatorial.com.br/para-voce/energia-solar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium"
+              >portal da CEEE Equatorial</a>{' '}
+              antes de protocolar.
             </div>
             <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
               {formCEEEPreview}

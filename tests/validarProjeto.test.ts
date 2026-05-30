@@ -19,11 +19,14 @@ const BASE: FormData = {
   potenciaUnitariaWp: '550',
   paineisSerie: '5',
   stringParalelo: '2',
+  vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
+  eficienciaPainel: '', coefTempVoc: '',
   modeloInversor: 'Growatt MIN 5000TL-X',
   potenciaCAkW: '5',
   tensaoEntradaCC: '600',
   tensaoSaidaCA: '220',
   quantidadeInversores: '1',
+  numMPPT: '', faixaMPPTMin: '', faixaMPPTMax: '', tensaoPartidaCC: '', eficienciaInv: '',
   secaoCaboCC: '6',
   secaoCaboCA: '6',
   secaoCaboAterr: '16',
@@ -220,5 +223,16 @@ describe('validarProjeto — DPS', () => {
   it('DPS01: sem aviso quando tensão DPS CC adequada', () => {
     // dpsCCTensao = 1000V > vocMax → ok
     expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'DPS01')).toBe(false);
+  });
+
+  it('DPS02: aviso quando tensão DPS CA < 242 V (1,1 × Vrede)', () => {
+    // dpsCATensao = 220V < 242V → aviso
+    const fd = { ...BASE, dpsCATensao: '220' };
+    expect(hasCode(validarProjeto(fd, calcularSistema(BASE)), 'DPS02')).toBe(true);
+  });
+
+  it('DPS02: sem aviso quando tensão DPS CA adequada (≥ 242 V)', () => {
+    // BASE.dpsCATensao = '275' > 242V → ok
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'DPS02')).toBe(false);
   });
 });

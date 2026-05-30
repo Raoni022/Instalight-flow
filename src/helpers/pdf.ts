@@ -59,6 +59,29 @@ export const pdfFooter = (
 };
 
 /**
+ * Faixa vermelha de aviso de assinatura RT.
+ * Chamar imediatamente antes de pdfFooter em cada exportação.
+ * Garante que nenhum documento saia sem o lembrete visível.
+ */
+export const pdfRTWarning = (doc: jsPDF): void => {
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  doc.setFillColor(220, 38, 38);                         // red-600
+  doc.rect(14, H - 31, W - 28, 7, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(
+    'DOCUMENTO SEM VALIDADE JURÍDICA — ASSINATURA DO RESPONSÁVEL TÉCNICO HABILITADO OBRIGATÓRIA',
+    W / 2,
+    H - 26.5,
+    { align: 'center' },
+  );
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'normal');
+};
+
+/**
  * Renderiza um bloco de texto multi-linha no PDF,
  * com suporte a negrito (linha envolta em `**...**`)
  * e quebra de página automática.

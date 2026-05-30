@@ -107,6 +107,15 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     );
   }
 
+  // ── DPS CA — tensão mínima ≥ 1,1 × Vrede = 242 V ─────────────
+  const dpsCATensao = num(fd.dpsCATensao, 0);
+  if (dpsCATensao > 0 && dpsCATensao < 242) {
+    w('DPS02',
+      `Tensão nominal do DPS CA (${dpsCATensao} V) < 1,1 × Vrede = 242 V. ` +
+      `Selecione DPS CA com Uc ≥ 242 V. [IEC/EN 61643-1]`
+    );
+  }
+
   // ── Relação de dimensionamento CC/CA (oversizing) ─────────────
   if (calc.kWp > 0 && calc.kWtCA > 0) {
     const ratio = calc.kWp / calc.kWtCA;

@@ -32,10 +32,9 @@ export const TARIFA = 0.85;
 
 /**
  * Fator de emissão de CO₂ do SIN (kgCO₂eq/kWh).
- * Valor conservador ajustado. Fator oficial ANEEL 2023 ≈ 0,0783 kgCO₂eq/kWh.
- * Validar anualmente com publicação oficial (Inventário GHG ANEEL).
+ * Fonte: Inventário GHG — ANEEL 2023. Validar anualmente.
  */
-export const CO2_FACTOR = 0.09;
+export const CO2_FACTOR = 0.0783;
 
 // ── API / App ─────────────────────────────────────────────────────────────
 

@@ -19,11 +19,14 @@ const BASE: FormData = {
   potenciaUnitariaWp: '550',
   paineisSerie: '5',
   stringParalelo: '2',
+  vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
+  eficienciaPainel: '', coefTempVoc: '',
   modeloInversor: 'Growatt MIN 5000TL-X',
   potenciaCAkW: '5',
   tensaoEntradaCC: '600',
   tensaoSaidaCA: '220',
   quantidadeInversores: '1',
+  numMPPT: '', faixaMPPTMin: '', faixaMPPTMax: '', tensaoPartidaCC: '', eficienciaInv: '',
   secaoCaboCC: '6',
   secaoCaboCA: '6',
   secaoCaboAterr: '16',
@@ -156,9 +159,9 @@ describe('calcularSistema — Geração e Economia', () => {
 });
 
 describe('calcularSistema — CO₂ e Impacto Ambiental', () => {
-  it('co2EvitadoAnual = round(geracaoAnual × 0.09)', () => {
+  it('co2EvitadoAnual = round(geracaoAnual × 0.0783) — ANEEL 2023', () => {
     const c = calcularSistema(BASE);
-    expect(c.co2EvitadoAnual).toBe(Math.round(c.geracaoAnual * 0.09));
+    expect(c.co2EvitadoAnual).toBe(Math.round(c.geracaoAnual * 0.0783));
   });
 
   it('arvoresEquivalente = round(co2EvitadoAnual / 25)', () => {
