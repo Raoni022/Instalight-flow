@@ -39,7 +39,7 @@ export function calcularSistema(fd: FormData): Calculos {
   const ns     = num(fd.paineisSerie);
   const vocStr = ns * VOC_PP;
   /** Voc_max com fator de temperatura 1,25 — NBR 16690 §6.3 */
-  const vocMax = parseFloat((vocStr * 1.25).toFixed(1));
+  const vocMax = parseFloat((vocStr * 1.25).toFixed(2));
 
   // ══════════════════════════════════════════════════════════════
   // CORRENTES CC
@@ -79,9 +79,9 @@ export function calcularSistema(fd: FormData): Calculos {
   // QUEDA DE TENSÃO
   // ══════════════════════════════════════════════════════════════
   const ccL = num(fd.comprimentoCabosCC, 10); // m
-  const ccS = num(fd.secaoCaboCC, 6);         // mm²
+  const ccS = num(fd.secaoCaboCC);            // mm²  (0 se vazio — guarda dvccV=0)
   const caL = num(fd.comprimentoCabosCA, 10); // m
-  const caS = num(fd.secaoCaboCA, 6);         // mm²
+  const caS = num(fd.secaoCaboCA);            // mm²  (0 se vazio — guarda dvcaV=0)
 
   /** ΔV_CC = (2 × L × I × ρ) / S — circuito completo ida+volta */
   const dvccV = ccS > 0 ? parseFloat(((2 * ccL * iccNorma * RHO) / ccS).toFixed(3)) : 0;
@@ -95,8 +95,18 @@ export function calcularSistema(fd: FormData): Calculos {
   // ══════════════════════════════════════════════════════════════
   // DISJUNTORES (mínimos normativos)
   // ══════════════════════════════════════════════════════════════
-  const iDjCCMin = iccNorma; // ≥ 1,25 × Icc (já incluído em iccNorma)
-  const iDjCAMin = iDimCA;   // ≥ 1,25 × In  (já incluído em iDimCA)
+  /**
+   * iDjCCMin — corrente mínima por string (proteção por string).
+   * Cada string tem seu próprio fusível/disjuntor: ≥ 1,25 × Isc_string.
+   * A corrente total é gerenciada pelo combiner/inversor.
+   */
+  const iDjCCMin = parseFloat((iscStr * 1.25).toFixed(2));
+  /**
+   * iDjCAMin — corrente nominal do inversor (CA).
+   * O disjuntor CA é selecionado ≥ In; a seleção da próxima bitola comercial
+   * já incorpora a margem de segurança conforme NBR 5410 §6.2.
+   */
+  const iDjCAMin = iNomCA;
 
   // ══════════════════════════════════════════════════════════════
   // GERAÇÃO E ECONOMIA
