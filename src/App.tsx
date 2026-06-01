@@ -131,7 +131,8 @@ export default function App() {
   // ── Gestão de projetos ──
   const [projetos, setProjetos]           = useState<ProjetoSalvo[]>(carregarProjetos);
   const [projetoAberto, setProjetoAberto] = useState<ProjetoSalvo | null>(null);
-  const [projetoIdAtual, setProjetoIdAtual] = useState<string | null>(null);
+  const [projetoIdAtual, setProjetoIdAtual]     = useState<string | null>(null);
+  const [nomeProjetoAtual, setNomeProjetoAtual] = useState<string>('');
 
   // ── Estado central ──
   const [formData, setFormData]         = useState<FormData>(INITIAL_FORM);
@@ -263,6 +264,7 @@ export default function App() {
     setUploadedFiles([]);
     setActiveTab('diagramas');
     setProjetoIdAtual(null);
+    setNomeProjetoAtual('');
     setProjetoAberto({} as ProjetoSalvo);
   }, []);
 
@@ -274,6 +276,7 @@ export default function App() {
     setUploadedFiles([]);
     setActiveTab('diagramas');
     setProjetoIdAtual(proj.id);
+    setNomeProjetoAtual(proj.nomeProjeto ?? '');
     setProjetoAberto(proj);
   }, []);
 
@@ -297,12 +300,13 @@ export default function App() {
       if (projetoIdAtual) {
         atualizado = prev.map((p) =>
           p.id === projetoIdAtual
-            ? { ...p, label, status, formData, docsGerados, documentos, atualizadoEm: agora }
+            ? { ...p, nomeProjeto: nomeProjetoAtual, label, status, formData, docsGerados, documentos, atualizadoEm: agora }
             : p,
         );
       } else {
         const novo: ProjetoSalvo = {
           id: crypto.randomUUID(),
+          nomeProjeto: nomeProjetoAtual,
           label,
           status,
           formData,
@@ -320,7 +324,28 @@ export default function App() {
     });
 
     setToast({ message: '💾 Projeto salvo com sucesso!', type: 'success' });
-  }, [formData, docsGerados, uploadedFiles, projetoIdAtual]);
+  }, [formData, docsGerados, uploadedFiles, projetoIdAtual, nomeProjetoAtual]);
+
+  const duplicarProjeto = useCallback((proj: ProjetoSalvo) => {
+    const agora = new Date().toISOString();
+    const copia: ProjetoSalvo = {
+      ...proj,
+      id: crypto.randomUUID(),
+      nomeProjeto: proj.nomeProjeto ? `${proj.nomeProjeto} (cópia)` : '',
+      label: `${proj.label} (cópia)`,
+      status: 'rascunho',
+      docsGerados: { diagramas: true, memorial: false, procuracao: false, formularioCEEE: false },
+      documentos: [],
+      criadoEm: agora,
+      atualizadoEm: agora,
+    };
+    setProjetos((prev) => {
+      const atualizado = [copia, ...prev];
+      persistirProjetos(atualizado);
+      return atualizado;
+    });
+    setToast({ message: '⧉ Projeto duplicado com sucesso!', type: 'success' });
+  }, []);
 
   const excluirProjeto = useCallback((id: string) => {
     setProjetos((prev) => {
@@ -384,7 +409,7 @@ export default function App() {
             onKeyDown={(e) => e.key === 'Enter' && verificarSenha()}
             placeholder="Chave de acesso"
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-orange-500 mb-3"
+                       focus:outline-none focus:ring-2 focus:ring-brand-500 mb-3"
             autoFocus
           />
           {senhaErro && (
@@ -393,8 +418,8 @@ export default function App() {
           <button
             onClick={verificarSenha}
             disabled={verificandoSenha || !senhaInput.trim()}
-            className="w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-semibold
-                       hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            className="w-full bg-brand-500 text-white rounded-lg py-2.5 text-sm font-semibold
+                       hover:bg-brand-600 disabled:opacity-50 transition-colors"
           >
             {verificandoSenha ? 'Verificando…' : 'Entrar'}
           </button>
@@ -412,6 +437,7 @@ export default function App() {
           onNovoProjeto={novoProjeto}
           onAbrirProjeto={abrirProjeto}
           onExcluirProjeto={excluirProjeto}
+          onDuplicarProjeto={duplicarProjeto}
         />
         {toast && (
           <div
@@ -444,14 +470,23 @@ export default function App() {
 
         <div className="w-px h-5 bg-gray-700 flex-shrink-0" />
 
+        {/* Nome do projeto — editável inline */}
+        <input
+          value={nomeProjetoAtual}
+          onChange={(e) => setNomeProjetoAtual(e.target.value)}
+          onBlur={salvarProjeto}
+          placeholder="Nome do projeto…"
+          className="bg-transparent text-white text-xs border-b border-gray-700 focus:border-brand-400 outline-none px-1 w-36 placeholder-gray-500 flex-shrink-0"
+        />
+
+        <div className="w-px h-5 bg-gray-700 flex-shrink-0" />
+
         {/* Logo Instalight */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm select-none">
-            ☀
-          </div>
+          <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center flex-shrink-0"><svg width="18" height="13" viewBox="0 0 18 13" fill="none"><path d="M1 2 Q9 0 17 2" stroke="white" strokeWidth="2.2" strokeLinecap="round"/><path d="M3 6.5 Q9 4.5 15 6.5" stroke="white" strokeWidth="2.2" strokeLinecap="round"/><path d="M5 11 Q9 9 13 11" stroke="white" strokeWidth="2.2" strokeLinecap="round"/></svg></div>
           <div className="leading-none">
             <div className="text-white font-bold text-sm">GD Docs</div>
-            <div className="text-orange-400 text-xs">Instalight</div>
+            <div className="text-brand-400 text-xs">Instalight</div>
           </div>
         </div>
 
@@ -463,7 +498,7 @@ export default function App() {
               onClick={() => setActiveTab(t.id)}
               className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                 activeTab === t.id
-                  ? 'bg-orange-500 text-white'
+                  ? 'bg-brand-500 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
@@ -491,7 +526,7 @@ export default function App() {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Anthropic API Key"
-              className="bg-gray-800 text-gray-200 text-xs px-3 py-1.5 rounded border border-gray-700 outline-none focus:border-orange-500 w-56 placeholder-gray-500"
+              className="bg-gray-800 text-gray-200 text-xs px-3 py-1.5 rounded border border-gray-700 outline-none focus:border-brand-500 w-56 placeholder-gray-500"
             />
           </div>
         )}
@@ -507,7 +542,7 @@ export default function App() {
         {/* Exportar Tudo */}
         <button
           onClick={exportarTudo}
-          className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-1 flex-shrink-0 transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600 flex items-center gap-1 flex-shrink-0 transition-colors"
         >
           ⬇ Exportar Tudo
         </button>

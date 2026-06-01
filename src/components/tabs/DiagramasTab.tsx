@@ -85,13 +85,13 @@ export const DiagramasTab: React.FC<DiagramasTabProps> = ({ fd, calc, svgRef }) 
         <div className="flex gap-2">
           <button
             onClick={exportSVG}
-            className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50"
+            className="px-3 py-1.5 text-xs font-medium rounded border border-brand-300 text-brand-600 hover:bg-brand-50"
           >
             Exportar SVG
           </button>
           <button
             onClick={exportPDF}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-orange-500 text-white hover:bg-orange-600"
+            className="px-3 py-1.5 text-xs font-medium rounded bg-brand-500 text-white hover:bg-brand-600"
           >
             Exportar PDF (A3)
           </button>

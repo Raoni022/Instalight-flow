@@ -17,7 +17,7 @@ interface ResumoTabProps {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  orange:  'bg-orange-50 border-orange-200 text-orange-700',
+  orange:  'bg-brand-50 border-brand-200 text-brand-700',
   blue:    'bg-blue-50 border-blue-200 text-blue-700',
   green:   'bg-green-50 border-green-200 text-green-700',
   purple:  'bg-purple-50 border-purple-200 text-purple-700',
@@ -46,7 +46,7 @@ const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como, link }) =>
       {!gerado && <p className="text-xs text-slate-500 mt-0.5">{como}</p>}
       {!gerado && link && (
         <a href={link} target="_blank" rel="noopener noreferrer"
-          className="text-xs text-orange-600 underline hover:text-orange-800 mt-0.5 inline-block">
+          className="text-xs text-brand-600 underline hover:text-brand-800 mt-0.5 inline-block">
           🗺 Abrir no Google Maps
         </a>
       )}
@@ -107,7 +107,7 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
       y += 4;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.setFillColor(249, 115, 22);
+      doc.setFillColor(120, 184, 58);
       doc.rect(14, y - 5, W - 28, 8, 'F');
       doc.setTextColor(255, 255, 255);
       doc.text(title, 16, y);
@@ -153,7 +153,7 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
         </div>
         <button
           onClick={exportPendencias}
-          className="px-4 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600"
+          className="px-4 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
         >
           📄 Gerar PDF de Pendências
         </button>
@@ -174,7 +174,7 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
         {/* Grupo A */}
         <div>
           <h3 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded">GRUPO A</span>
+            <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-0.5 rounded">GRUPO A</span>
             Documentos do Cliente
           </h3>
           <div className="space-y-2">

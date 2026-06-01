@@ -28,7 +28,7 @@ export const DiagramaMultifilarMelhorado: React.FC<Props> = ({ fd }) => {
 
   const red = '#dc2626';
   const blk = '#1a1a2e';
-  const org = '#f97316';
+  const org = '#78B83A';
   const grn = '#16a34a';
   const blu = '#3b82f6';
   const brn = '#92400e';

@@ -101,11 +101,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Potência Unit. (Wp)" name="potenciaUnitariaWp" value={fd.potenciaUnitariaWp} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Painéis em Série (por string)" name="paineisSerie" value={fd.paineisSerie} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Strings em Paralelo" name="stringParalelo" value={fd.stringParalelo} onChange={onChange} type="number" aiFields={aiFilledFields} />
-        <div className="flex items-center gap-2 bg-orange-50 rounded px-2 py-1 text-xs">
+        <div className="flex items-center gap-2 bg-brand-50 rounded px-2 py-1 text-xs">
           <span className="text-slate-500">Potência CC:</span>
-          <span className="font-bold text-orange-600">{calc.kWp} kWp</span>
+          <span className="font-bold text-brand-600">{calc.kWp} kWp</span>
           <span className="ml-2 text-slate-500">Enq.:</span>
-          <span className="font-semibold text-orange-600 text-xs">{calc.enq}</span>
+          <span className="font-semibold text-brand-600 text-xs">{calc.enq}</span>
         </div>
         {/* Datasheet do módulo */}
         <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Datasheet do Módulo</p>
@@ -159,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Tensão Entrada CC (V)" name="tensaoEntradaCC" value={fd.tensaoEntradaCC} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Tensão Saída CA (V)" name="tensaoSaidaCA" value={fd.tensaoSaidaCA} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Qtd. Inversores" name="quantidadeInversores" value={fd.quantidadeInversores} onChange={onChange} type="number" aiFields={aiFilledFields} />
-        <div className="bg-orange-50 rounded px-2 py-1 text-xs text-orange-700">
+        <div className="bg-brand-50 rounded px-2 py-1 text-xs text-brand-700">
           Potência CA total: <strong>{calc.kWtCA} kW</strong>
         </div>
         {/* Dados extras do inversor */}

@@ -212,7 +212,7 @@ function _buildPendenciasPDF(
     y += 4;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.setFillColor(249, 115, 22);
+    doc.setFillColor(120, 184, 58);
     doc.rect(14, y - 5, W - 28, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.text(title, 16, y);

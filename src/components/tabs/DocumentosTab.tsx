@@ -118,7 +118,7 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
             onClick={() => setActiveDoc('procuracao')}
             className={`px-3 py-1 text-xs font-semibold rounded-t ${
               activeDoc === 'procuracao'
-                ? 'bg-orange-500 text-white'
+                ? 'bg-brand-500 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -128,7 +128,7 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
             onClick={() => setActiveDoc('formulario')}
             className={`px-3 py-1 text-xs font-semibold rounded-t ${
               activeDoc === 'formulario'
-                ? 'bg-orange-500 text-white'
+                ? 'bg-brand-500 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -149,7 +149,7 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
               <div className="flex gap-2">
                 <button
                   onClick={gerarProcuracao}
-                  className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600"
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
                 >
                   Gerar / Atualizar
                 </button>
@@ -158,11 +158,11 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                     <button
                       onClick={refinarProcuracao}
                       disabled={refiningProc || !canRefine}
-                      className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1"
+                      className="px-3 py-1.5 text-xs font-medium rounded border border-brand-300 text-brand-600 hover:bg-brand-50 disabled:opacity-50 flex items-center gap-1"
                     >
                       {refiningProc ? (
                         <>
-                          <span className="inline-block w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="inline-block w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                           <span>Refinando…</span>
                         </>
                       ) : (
@@ -203,7 +203,7 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
               </div>
               <button
                 onClick={exportFormularioPDF}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600"
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
               >
                 Exportar PDF
               </button>

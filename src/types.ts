@@ -243,7 +243,8 @@ export type StatusProjeto = 'rascunho' | 'em_andamento' | 'concluido';
 
 export interface ProjetoSalvo {
   id: string;
-  label: string;
+  nomeProjeto: string;   // nome customizado pelo usuário (editável no editor)
+  label: string;         // auto-gerado: "Cliente — UC XXXX"
   status: StatusProjeto;
   formData: FormData;
   docsGerados: DocsGerados;

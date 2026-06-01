@@ -19,7 +19,7 @@ export const pdfHeader = (doc: jsPDF, fd: FormData): void => {
   const W = doc.internal.pageSize.getWidth();
   doc.setFillColor(17, 24, 39);
   doc.rect(0, 0, W, 22, 'F');
-  doc.setFillColor(249, 115, 22);
+  doc.setFillColor(120, 184, 58);
   doc.rect(0, 20, W, 2, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(13);

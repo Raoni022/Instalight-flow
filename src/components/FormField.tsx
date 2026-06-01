@@ -24,15 +24,15 @@ export const FormField: React.FC<FormFieldProps> = ({
   placeholder,
 }) => {
   const isAI = aiFields?.has(name) ?? false;
-  const cls = `w-full text-xs rounded border px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-400 ${
-    isAI ? 'border-orange-400 bg-orange-50' : 'border-slate-300'
+  const cls = `w-full text-xs rounded border px-2 py-1.5 outline-none focus:ring-1 focus:ring-brand-400 ${
+    isAI ? 'border-brand-400 bg-brand-50' : 'border-slate-300'
   }`;
 
   return (
     <div>
       <label className="block text-xs text-slate-500 mb-0.5">
         {label}
-        {isAI && <span className="ml-1 text-orange-400">✨</span>}
+        {isAI && <span className="ml-1 text-brand-400">✨</span>}
       </label>
       {options ? (
         <select name={name} value={value} onChange={onChange} className={cls}>

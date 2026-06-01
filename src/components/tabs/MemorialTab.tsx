@@ -153,7 +153,7 @@ ${template}`;
           <button
             onClick={gerarMemorial}
             disabled={generatingMemorial || !canGenerate}
-            className="px-4 py-1.5 text-xs font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 flex items-center gap-2"
           >
             {generatingMemorial ? (
               <>
@@ -167,7 +167,7 @@ ${template}`;
           {memorialIA && (
             <button
               onClick={exportPDF}
-              className="px-3 py-1.5 text-xs font-medium rounded border border-orange-300 text-orange-600 hover:bg-orange-50"
+              className="px-3 py-1.5 text-xs font-medium rounded border border-brand-300 text-brand-600 hover:bg-brand-50"
             >
               Exportar PDF
             </button>
@@ -185,11 +185,11 @@ ${template}`;
               <a
                 key={s.id}
                 href={`#sec-memorial-${s.id}`}
-                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-slate-600 hover:bg-orange-50 hover:text-orange-600 mb-0.5"
+                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-slate-600 hover:bg-brand-50 hover:text-brand-600 mb-0.5"
               >
                 <span>{s.icon}</span>
                 <span className="truncate">{s.label}</span>
-                <span className={`ml-auto flex-shrink-0 w-1.5 h-1.5 rounded-full ${s.tipo === 'ia' ? 'bg-orange-400' : 'bg-green-400'}`} />
+                <span className={`ml-auto flex-shrink-0 w-1.5 h-1.5 rounded-full ${s.tipo === 'ia' ? 'bg-brand-400' : 'bg-green-400'}`} />
               </a>
             ))}
             <div className="mt-3 px-2 space-y-1 text-xs text-slate-400">
@@ -198,7 +198,7 @@ ${template}`;
                 <span>Calculado (JS)</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+                <span className="w-2 h-2 rounded-full bg-brand-400 inline-block" />
                 <span>Gerado (IA)</span>
               </div>
             </div>
@@ -223,7 +223,7 @@ ${template}`;
                 <button
                   onClick={gerarMemorial}
                   disabled={!canGenerate}
-                  className="px-4 py-2 text-sm font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-semibold rounded bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50"
                 >
                   ✍️ Gerar com IA {!canGenerate && '(API Key necessária)'}
                 </button>
@@ -233,7 +233,7 @@ ${template}`;
 
           {generatingMemorial && (
             <div className="text-center py-16 text-slate-400">
-              <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="font-medium text-slate-600 mb-1">Gerando memorial profissional…</p>
               <p className="text-sm">A IA está redigindo as seções narrativas. Aguarde ~20s.</p>
             </div>

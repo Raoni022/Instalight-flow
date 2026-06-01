@@ -26,7 +26,7 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
   const W = 1600;
   const H = 980;
 
-  const org = '#f97316';
+  const org = '#78B83A';
   const blk = '#1a1a2e';
   const gry = '#64748b';
   const sl  = '#cbd5e1';

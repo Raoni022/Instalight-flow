@@ -30,7 +30,7 @@ export const DiagramaUnifilarVertical: React.FC<Props> = ({ fd, calc }) => {
   const red = '#dc2626';
   const blk = '#1a1a2e';
   const grn = '#16a34a';
-  const org = '#f97316';
+  const org = '#78B83A';
   const gry = '#64748b';
 
   const CX = 268;
