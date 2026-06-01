@@ -18,9 +18,10 @@ import { validarProjeto }    from './engine/validarProjeto';
 import { LS_KEY }            from './constants';
 import { exportarDossieZip } from './helpers/zip';
 
-import type { FormData, Toast, DocsGerados } from './types';
+import type { FormData, Toast, DocsGerados, ProjetoSalvo, StatusProjeto } from './types';
 
 import { Sidebar }       from './components/Sidebar';
+import { HomeScreen }    from './components/HomeScreen';
 import { DiagramasTab }  from './components/tabs/DiagramasTab';
 import { MemorialTab }   from './components/tabs/MemorialTab';
 import { DocumentosTab } from './components/tabs/DocumentosTab';
@@ -51,6 +52,13 @@ export const INITIAL_FORM: FormData = {
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
 };
 
+const INITIAL_DOCS: DocsGerados = {
+  diagramas: true,
+  memorial: false,
+  procuracao: false,
+  formularioCEEE: false,
+};
+
 // ── Tabs ──────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'diagramas',  label: 'Diagramas',  icon: '📐' },
@@ -74,6 +82,34 @@ const IS_PROD =
   window.location.protocol === 'https:' &&
   !window.location.hostname.includes('localhost');
 
+// ── Persistência de projetos ──────────────────────────────────────────────
+const LS_PROJECTS = 'instalight_projects';
+
+function carregarProjetos(): ProjetoSalvo[] {
+  try {
+    const raw = localStorage.getItem(LS_PROJECTS);
+    return raw ? (JSON.parse(raw) as ProjetoSalvo[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistirProjetos(projetos: ProjetoSalvo[]) {
+  localStorage.setItem(LS_PROJECTS, JSON.stringify(projetos));
+}
+
+function calcularStatus(fd: FormData, docs: DocsGerados): StatusProjeto {
+  if (docs.memorial && docs.procuracao && docs.formularioCEEE) return 'concluido';
+  const algumCampo = fd.nomeCliente || fd.codigoUC || fd.modeloInversor || fd.modeloPainel;
+  return algumCampo ? 'em_andamento' : 'rascunho';
+}
+
+function gerarLabel(fd: FormData): string {
+  const nome = fd.nomeCliente?.trim() || 'Cliente não informado';
+  const uc   = fd.codigoUC?.trim();
+  return uc ? `${nome} — UC ${uc}` : nome;
+}
+
 // ── App ───────────────────────────────────────────────────────────────────
 export default function App() {
   // ── Autenticação interna (apenas em produção, quando APP_TOKEN configurado no proxy) ──
@@ -84,6 +120,11 @@ export default function App() {
   const [senhaErro, setSenhaErro]       = useState('');
   const [verificandoSenha, setVerificandoSenha] = useState(false);
 
+  // ── Gestão de projetos ──
+  const [projetos, setProjetos]           = useState<ProjetoSalvo[]>(carregarProjetos);
+  const [projetoAberto, setProjetoAberto] = useState<ProjetoSalvo | null>(null);
+  const [projetoIdAtual, setProjetoIdAtual] = useState<string | null>(null);
+
   // ── Estado central ──
   const [formData, setFormData]         = useState<FormData>(INITIAL_FORM);
   const [apiKey, setApiKey]             = useState<string>(() => localStorage.getItem(LS_KEY) ?? '');
@@ -93,12 +134,7 @@ export default function App() {
   // Estados de geração de documentos
   const [memorialIA, setMemorialIA]               = useState('');
   const [generatingMemorial, setGeneratingMemorial] = useState(false);
-  const [docsGerados, setDocsGerados]             = useState<DocsGerados>({
-    diagramas: true,
-    memorial: false,
-    procuracao: false,
-    formularioCEEE: false,
-  });
+  const [docsGerados, setDocsGerados]             = useState<DocsGerados>(INITIAL_DOCS);
 
   // Estados do módulo de upload
   const [uploadedFiles, setUploadedFiles]     = useState<File[]>([]);
@@ -124,7 +160,6 @@ export default function App() {
     setSenhaErro('');
     const token = senhaInput.trim();
     try {
-      // Chama /api/ping — valida só o token, sem consumir cota Anthropic
       const r = await fetch('/api/ping', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-app-token': token },
@@ -156,7 +191,6 @@ export default function App() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
       setFormData((prev) => ({ ...prev, [name]: value }));
-      // Se o campo foi alterado manualmente, remove o marcador de IA
       setAiFilledFields((prev) => {
         if (!prev.has(name)) return prev;
         const next = new Set(prev);
@@ -195,6 +229,83 @@ export default function App() {
     }
   }, []);
 
+  // ── Gestão de projetos ──────────────────────────────────────────────────
+
+  const novoProjeto = useCallback(() => {
+    setFormData({ ...INITIAL_FORM, dataproject: new Date().toISOString().slice(0, 10) });
+    setDocsGerados(INITIAL_DOCS);
+    setMemorialIA('');
+    setAiFilledFields(new Set());
+    setUploadedFiles([]);
+    setActiveTab('diagramas');
+    setProjetoIdAtual(null);
+    setProjetoAberto({} as ProjetoSalvo);
+  }, []);
+
+  const abrirProjeto = useCallback((proj: ProjetoSalvo) => {
+    setFormData(proj.formData);
+    setDocsGerados(proj.docsGerados);
+    setMemorialIA('');
+    setAiFilledFields(new Set());
+    setUploadedFiles([]);
+    setActiveTab('diagramas');
+    setProjetoIdAtual(proj.id);
+    setProjetoAberto(proj);
+  }, []);
+
+  const voltarHome = useCallback(() => {
+    setProjetoAberto(null);
+    setProjetoIdAtual(null);
+  }, []);
+
+  const salvarProjeto = useCallback(() => {
+    const agora = new Date().toISOString();
+    const status = calcularStatus(formData, docsGerados);
+    const label  = gerarLabel(formData);
+    const documentos = uploadedFiles.map((f) => ({
+      nome: f.name,
+      tipo: f.type,
+      tamanho: f.size,
+    }));
+
+    setProjetos((prev) => {
+      let atualizado: ProjetoSalvo[];
+      if (projetoIdAtual) {
+        atualizado = prev.map((p) =>
+          p.id === projetoIdAtual
+            ? { ...p, label, status, formData, docsGerados, documentos, atualizadoEm: agora }
+            : p,
+        );
+      } else {
+        const novo: ProjetoSalvo = {
+          id: crypto.randomUUID(),
+          label,
+          status,
+          formData,
+          docsGerados,
+          documentos,
+          criadoEm: agora,
+          atualizadoEm: agora,
+        };
+        setProjetoIdAtual(novo.id);
+        setProjetoAberto(novo);
+        atualizado = [novo, ...prev];
+      }
+      persistirProjetos(atualizado);
+      return atualizado;
+    });
+
+    setToast({ message: '💾 Projeto salvo com sucesso!', type: 'success' });
+  }, [formData, docsGerados, uploadedFiles, projetoIdAtual]);
+
+  const excluirProjeto = useCallback((id: string) => {
+    setProjetos((prev) => {
+      const atualizado = prev.filter((p) => p.id !== id);
+      persistirProjetos(atualizado);
+      return atualizado;
+    });
+  }, []);
+
   // ── Exportação em massa (dossiê ZIP) ──
   const exportarTudo = useCallback(async () => {
     const errosCriticos = validacoes.filter((x) => x.nivel === 'erro');
@@ -221,6 +332,11 @@ export default function App() {
       setToast({ message: 'Erro ao gerar ZIP: ' + String(err), type: 'error' });
     }
   }, [formData, calc, memorialIA, docsGerados, validacoes]);
+
+  // ── Documentos histórico do projeto aberto ──
+  const documentosHistorico = projetoAberto && projetoIdAtual
+    ? (projetos.find((p) => p.id === projetoIdAtual)?.documentos ?? [])
+    : [];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -260,11 +376,46 @@ export default function App() {
     );
   }
 
+  // ── Home Screen ───────────────────────────────────────────────────────────
+  if (!projetoAberto) {
+    return (
+      <>
+        <HomeScreen
+          projetos={projetos}
+          onNovoProjeto={novoProjeto}
+          onAbrirProjeto={abrirProjeto}
+          onExcluirProjeto={excluirProjeto}
+        />
+        {toast && (
+          <div
+            className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white text-sm z-50 max-w-sm ${
+              TOAST_COLORS[toast.type] ?? 'bg-gray-800'
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ── Editor ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="h-14 bg-gray-900 flex items-center px-4 gap-4 flex-shrink-0 border-b border-gray-800">
+
+        {/* Botão voltar à home */}
+        <button
+          onClick={voltarHome}
+          className="flex items-center gap-1.5 text-gray-400 hover:text-white text-xs transition-colors flex-shrink-0"
+          title="Voltar para lista de projetos"
+        >
+          ← Projetos
+        </button>
+
+        <div className="w-px h-5 bg-gray-700 flex-shrink-0" />
 
         {/* Logo Instalight */}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -318,6 +469,14 @@ export default function App() {
           </div>
         )}
 
+        {/* Salvar projeto */}
+        <button
+          onClick={salvarProjeto}
+          className="px-3 py-1.5 text-xs font-semibold rounded bg-gray-700 text-white hover:bg-gray-600 flex items-center gap-1 flex-shrink-0 transition-colors"
+        >
+          💾 Salvar
+        </button>
+
         {/* Exportar Tudo */}
         <button
           onClick={exportarTudo}
@@ -343,6 +502,7 @@ export default function App() {
           extractingData={extractingData}
           setExtractingData={setExtractingData}
           aiFilledFields={aiFilledFields}
+          documentosHistorico={documentosHistorico}
         />
 
         {/* Área principal — tabs */}

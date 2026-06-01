@@ -38,12 +38,14 @@ export interface ApiResponse {
  * @param system - System prompt.
  * @param messages - Array de mensagens.
  * @param maxTokens - Limite de tokens na resposta (padrão 4000).
+ * @param temperature - Temperatura da geração (0–1). Use 0.1 para extração estruturada.
  */
 export async function callAPI(
   apiKey: string,
   system: string,
   messages: ApiMessage[],
   maxTokens = 4000,
+  temperature?: number,
 ): Promise<ApiResponse> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
 
@@ -59,7 +61,9 @@ export async function callAPI(
   }
 
   const url = IS_PROD ? PROXY_URL : DIRECT_URL;
-  const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, messages });
+  const bodyObj: Record<string, unknown> = { model: MODEL, max_tokens: maxTokens, system, messages };
+  if (temperature !== undefined) bodyObj.temperature = temperature;
+  const body = JSON.stringify(bodyObj);
 
   const r = await fetch(url, { method: 'POST', headers, body });
 

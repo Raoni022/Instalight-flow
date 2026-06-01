@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { FormData, Calculos, ValidationIssue } from '../types';
+import type { FormData, Calculos, ValidationIssue, DocAnexo } from '../types';
 import { ValidationPanel } from './ValidationPanel';
 import { UploadModule } from './UploadModule';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -25,6 +25,7 @@ interface SidebarProps {
   extractingData: boolean;
   setExtractingData: React.Dispatch<React.SetStateAction<boolean>>;
   aiFilledFields: Set<string>;
+  documentosHistorico?: DocAnexo[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   extractingData,
   setExtractingData,
   aiFilledFields,
+  documentosHistorico = [],
 }) => (
   <div className="w-96 flex-shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto">
     <ValidationPanel issues={validacoes} />
@@ -51,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         setUploadedFiles={setUploadedFiles}
         extractingData={extractingData}
         setExtractingData={setExtractingData}
+        documentosHistorico={documentosHistorico}
       />
 
       {/* ── CLIENTE ── */}

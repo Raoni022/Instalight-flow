@@ -29,6 +29,11 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
   const sl  = '#cbd5e1';
   const grn = '#16a34a';
 
+  const polosCA = fd.tipoLigacao === 'Trifásico' ? '3P' : '2P';
+  const fmtDPS = (t: string | undefined) => { const m = (t ?? '').match(/\d/); return m ? `T${m[0]}` : 'T2'; };
+  const dpsTipoCC = fmtDPS(fd.dpsCCTipo);
+  const dpsTipoCA = fmtDPS(fd.dpsCATipo);
+
   const HD    = 65;
   const UNI_W = 540;
   const RIG_X = 540;
@@ -159,7 +164,7 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
       {/* Disjuntor geral */}
       <CBSym x={RIG_X + 290} y={D1_Y + 80} c={blk} />
       <text x={RIG_X + 290} y={D1_Y + 100} fontSize="7" fill={blk} textAnchor="middle" fontFamily="sans-serif">
-        DJ {fd.disjuntorCA || '—'}A
+        DJ {polosCA} {fd.disjuntorCA || '—'}A
       </text>
 
       {/* QDC */}
@@ -225,7 +230,9 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
         Espaçamento: 3,0m entre hastes
       </text>
       <text x={RIG_X + 780} y={D1_Y + 185} fontSize="7" fill={gry} textAnchor="middle" fontFamily="sans-serif">
-        Resistência ≤ 10 Ω conforme NBR 5419
+        {fd.resistenciaAterramento
+          ? `R_med = ${fd.resistenciaAterramento} Ω ✓ (NBR 5419 ≤ 10 Ω)`
+          : 'Resistência ≤ 10 Ω conforme NBR 5419'}
       </text>
 
       {/* ══════ SIMBOLOGIA (520×225) ══════ */}
@@ -266,6 +273,9 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
       <text x={RIG_X + 58} y={D2_Y + 238} fontSize="8" fill={blk} fontFamily="sans-serif">
         Condutor PE / aterramento
       </text>
+      <text x={RIG_X + 12} y={D2_Y + 254} fontSize="7" fill={gry} fontFamily="sans-serif" fontStyle="italic">
+        Símbolos conforme ABNT NBR 6148 / IEC 60617 (versão simplificada)
+      </text>
 
       {/* ══════ DADOS DO PROJETO (520×225) ══════ */}
       <rect x={RIG_X + 520} y={D2_Y} width={520} height={D2_H} fill="white" />
@@ -286,8 +296,8 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
         ['CO₂ evitado:',    `${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg/ano`],
         ['Cabo CC:',        `#${fd.secaoCaboCC || '6'}mm² PVC 70° 750V`],
         ['Cabo CA:',        `#${fd.secaoCaboCA || '6'}mm² PVC 70° 750V`],
-        ['Proteção CC:',    `DPS ${fd.dpsCCTensao || '1000'}V CC`],
-        ['Proteção CA:',    `DJ ${fd.disjuntorCA || '—'}A | DPS ${fd.dpsCATensao || '275'}V CA`],
+        ['Proteção CC:',    `DPS ${dpsTipoCC} ${fd.dpsCCTensao || '1000'}V CC`],
+        ['Proteção CA:',    `DJ ${polosCA} ${fd.disjuntorCA || '—'}A | DPS ${dpsTipoCA} ${fd.dpsCATensao || '275'}V CA`],
       ] as [string, string][]).map(([k, v], i) => (
         <g key={i}>
           <text x={RIG_X + 535} y={D2_Y + 36 + i * 15} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="600">

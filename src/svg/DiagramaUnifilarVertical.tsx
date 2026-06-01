@@ -22,6 +22,11 @@ export const DiagramaUnifilarVertical: React.FC<Props> = ({ fd, calc }) => {
   const np = num(fd.paineisSerie, 3);
   const showPanels = Math.min(np, 2);
 
+  const polosCA = fd.tipoLigacao === 'Trifásico' ? '3P' : '2P';
+  const fmtDPS = (t: string | undefined) => { const m = (t ?? '').match(/\d/); return m ? `T${m[0]}` : 'T2'; };
+  const dpsTipoCC = fmtDPS(fd.dpsCCTipo);
+  const dpsTipoCA = fmtDPS(fd.dpsCATipo);
+
   const red = '#dc2626';
   const blk = '#1a1a2e';
   const grn = '#16a34a';
@@ -97,7 +102,7 @@ export const DiagramaUnifilarVertical: React.FC<Props> = ({ fd, calc }) => {
         PADRÃO DE ENTRADA
       </text>
       <text x={CX} y={Y_PAD + 2} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">
-        DJ {fd.disjuntorCA || '—'}A — {fd.tipoLigacao || 'Mono'}
+        DJ {polosCA} {fd.disjuntorCA || '—'}A — {fd.tipoLigacao || 'Mono'}
       </text>
       <text x={CX} y={Y_PAD + 15} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">
         #{fd.secaoCaboCA || '6'}mm² PVC 70° 750V
@@ -118,11 +123,11 @@ export const DiagramaUnifilarVertical: React.FC<Props> = ({ fd, calc }) => {
       </text>
       <CBSym x={CX - 36} y={Y_QDC} c={blk} />
       <text x={CX - 36} y={Y_QDC + 22} fontSize="7" fill={blk} textAnchor="middle" fontFamily="sans-serif">
-        DJ {fd.disjuntorCA || '—'}A
+        DJ {polosCA} {fd.disjuntorCA || '—'}A
       </text>
       <DPSSym x={CX + 36} y={Y_QDC} c={red} />
       <text x={CX + 36} y={Y_QDC + 22} fontSize="7" fill={red} textAnchor="middle" fontFamily="sans-serif">
-        DPS {fd.dpsCATensao || '275'}V
+        DPS {dpsTipoCA} {fd.dpsCATensao || '275'}V
       </text>
       <GndSym x={CX} y={Y_QDC + 30} c={grn} />
 
@@ -158,7 +163,7 @@ export const DiagramaUnifilarVertical: React.FC<Props> = ({ fd, calc }) => {
         STRING BOX CC
       </text>
       <text x={CX} y={Y_SB - 12} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">
-        {nStr}× Fus. {fd.disjuntorCC || '—'}A | DPS {fd.dpsCCTensao || '1000'}V CC
+        {nStr}× Fus. 2P {fd.disjuntorCC || '—'}A | DPS {dpsTipoCC} {fd.dpsCCTensao || '1000'}V CC
       </text>
       <CBSym x={CX - 40} y={Y_SB + 10} c={blk} />
       <DPSSym x={CX + 20} y={Y_SB + 10} c={red} />

@@ -188,3 +188,24 @@ export interface Toast {
   message: string;
   type: ToastType;
 }
+
+// ── Gestão de projetos salvos ─────────────────────────────────────────────
+
+export interface DocAnexo {
+  nome: string;
+  tipo: string;
+  tamanho: number;
+}
+
+export type StatusProjeto = 'rascunho' | 'em_andamento' | 'concluido';
+
+export interface ProjetoSalvo {
+  id: string;
+  label: string;
+  status: StatusProjeto;
+  formData: FormData;
+  docsGerados: DocsGerados;
+  documentos: DocAnexo[];
+  criadoEm: string;
+  atualizadoEm: string;
+}
