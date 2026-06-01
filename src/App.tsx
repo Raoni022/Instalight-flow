@@ -34,11 +34,13 @@ export const INITIAL_FORM: FormData = {
   tipoInstalacao: 'Nova',
   nomeCliente: '', cpfCnpj: '', endereco: '', codigoUC: '',
   numeroFatura: '', consumoMensalKwh: '', numContaContrato: '',
+  numeroMedidor: '', classeUC: 'Residencial', latitude: '', longitude: '',
+  transformador: '', disjuntorEntrada: '', ramalEntrada: '',
   tipoLigacao: 'Monofásico',
   numeroPaineis: '', modeloPainel: '', potenciaUnitariaWp: '',
   paineisSerie: '', stringParalelo: '',
   vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
-  eficienciaPainel: '', coefTempVoc: '',
+  eficienciaPainel: '', coefTempVoc: '', noct: '', certificacaoPainel: '',
   modeloInversor: '', potenciaCAkW: '', tensaoEntradaCC: '',
   tensaoSaidaCA: '', quantidadeInversores: '1',
   numMPPT: '', faixaMPPTMin: '', faixaMPPTMax: '', tensaoPartidaCC: '', eficienciaInv: '',
@@ -51,8 +53,10 @@ export const INITIAL_FORM: FormData = {
   nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
-  nomeRepresentante: '', cpfRepresentante: '', cargoRepresentante: '',
+  nomeRepresentante: '', cpfRepresentante: '', rgRepresentante: '', cargoRepresentante: '',
+  inscricaoEstadual: '', emailContato: '', telefoneContato: '',
   numeroPaineisExistentes: '', modeloPainelExistente: '', potenciaWpExistente: '',
+  noctExistente: '', certificacaoExistente: '',
   modeloInversorExistente: '', potenciaCAExistentekW: '', quantidadeInversoresExistente: '',
 };
 
@@ -182,6 +186,22 @@ export default function App() {
       setVerificandoSenha(false);
     }
   }, [senhaInput]);
+
+  // ── Auto-salvar silenciosamente quando um documento é gerado ──
+  useEffect(() => {
+    if (!projetoIdAtual) return;
+    const agora = new Date().toISOString();
+    setProjetos((prev) => {
+      const atualizado = prev.map((p) =>
+        p.id === projetoIdAtual
+          ? { ...p, docsGerados, atualizadoEm: agora }
+          : p,
+      );
+      persistirProjetos(atualizado);
+      return atualizado;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docsGerados]);
 
   // ── Auto-dismiss do toast (4 s) ──
   useEffect(() => {

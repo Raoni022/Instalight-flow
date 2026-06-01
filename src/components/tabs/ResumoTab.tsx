@@ -65,6 +65,8 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
     { label: 'Economia anual est.',value: `R$ ${calc.economiaAnual.toLocaleString('pt-BR')}`,   icon: '💰', color: 'emerald' },
     { label: 'CO₂ evitado/ano',    value: `${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg`, icon: '🌿', color: 'teal'    },
     { label: 'Árvores equiv./ano', value: `${calc.arvoresEquivalente} árvores`,                  icon: '🌳', color: 'lime'    },
+    { label: 'DJ Geral Entrada',   value: fd.disjuntorEntrada ? `${fd.disjuntorEntrada} A` : '—', icon: '🔌', color: 'slate'  },
+    { label: 'Ramal de Entrada',   value: fd.ramalEntrada || '—',                                icon: '⚡', color: 'blue'   },
   ];
 
   const groupA = [

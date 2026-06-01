@@ -109,6 +109,8 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   linha('Código UC', fd.codigoUC);
   linha('Nº Conta-Contrato', fd.numContaContrato);
   linha('Nº Fatura', fd.numeroFatura);
+  if (fd.numeroMedidor)  linha('No do Medidor', fd.numeroMedidor);
+  if (fd.classeUC)       linha('Classe da UC',  fd.classeUC);
 
   y += 4;
   doc.setFont('helvetica', 'bold');
@@ -129,7 +131,10 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
     linha('Potência CA nominal', `${calc.kWtCA} kW`);
   }
   linha('Tipo de Ligação', fd.tipoLigacao);
-  if (fd.coordenadas) linha('Coordenadas GPS', fd.coordenadas);
+  if (fd.latitude || fd.longitude) linha('Coordenadas GPS', `Lat ${fd.latitude || '—'} / Long ${fd.longitude || '—'}`);
+  if (fd.transformador)  linha('Transformador',    fd.transformador);
+  if (fd.disjuntorEntrada) linha('DJ Geral Entrada', `${fd.disjuntorEntrada} A`);
+  if (fd.ramalEntrada)   linha('Ramal de Entrada', fd.ramalEntrada);
   linha(
     'Módulos FV',
     `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`,

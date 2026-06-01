@@ -45,9 +45,9 @@ SISTEMA DE ${calc.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
 Elaborado conforme NT.00020.EQTL-06 (CEEE Equatorial) e ABNT NBR 16690
 Nº do Projeto (PE): ${fd.numProjeto || '[INSERIR]'} | ART/TRT: ${fd.numART || '[INSERIR]'} | Data: ${hoje}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 LISTA DE SIGLAS E ABREVIATURAS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 ABNT  Associação Brasileira de Normas Técnicas
 ANEEL Agência Nacional de Energia Elétrica
 BT    Baixa Tensão
@@ -78,14 +78,14 @@ UC    Unidade Consumidora
 VN    Tensão Nominal
 Voc   Tensão de Circuito Aberto
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 1. OBJETIVO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 [[[IA_NARRATIVA_SEC1]]]
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 2. REFERÊNCIAS NORMATIVAS E REGULATÓRIAS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 • Lei Federal n° 14.300/2022 — Marco Legal da Microgeração e Minigeração Distribuída
 • REN ANEEL n° 1.000/2021 — Regras de prestação do serviço público de distribuição de energia
 • NT.00020.EQTL-06 — Norma Técnica CEEE Equatorial para Conexão de Micro/Minigeração
@@ -97,20 +97,36 @@ Voc   Tensão de Circuito Aberto
 • ABNT NBR 16150:2013 — Sistemas FV — Interface de conexão — Procedimento de ensaio
 • PRODIST Módulo 3 — Acesso ao Sistema de Distribuição
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 3. DADOS DA UNIDADE CONSUMIDORA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Titular:            ${fd.nomeCliente || '[INSERIR NOME]'}
-${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}:                ${fd.cpfCnpj || '[INSERIR]'}
-Tipo de instalação: ${fd.tipoInstalacao || 'Nova'}
-Conta-Contrato:     ${fd.numContaContrato || '[INSERIR CONTA-CONTRATO]'}
-Código da UC:       ${fd.codigoUC || '[INSERIR CÓDIGO UC]'}
-Endereço:           ${fd.endereco || '[INSERIR ENDEREÇO COMPLETO]'}
-Cidade / UF:        ${fd.cidade || 'Porto Alegre'} / RS
-Coordenadas:        ${fd.coordenadas || '[INSERIR COORDENADAS UTM]'}
-Consumo médio:      ${fd.consumoMensalKwh ? fd.consumoMensalKwh + ' kWh/mês' : '[INSERIR CONSUMO MÉDIO]'}
-Fatura referência:  ${fd.numeroFatura || '[INSERIR Nº FATURA]'}
-Distribuidora:      CEEE Equatorial (área de concessão Rio Grande do Sul)
+------------------------------------------------------------
+Titular:             ${fd.nomeCliente || '[INSERIR NOME]'}
+${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}:                  ${fd.cpfCnpj || '[INSERIR]'}
+${fd.tipoPessoa === 'juridica' && fd.inscricaoEstadual ? 'Inscricao Estadual:  ' + fd.inscricaoEstadual : ''}
+Tipo de instalacao:  ${fd.tipoInstalacao || 'Nova'}
+Conta-Contrato:      ${fd.numContaContrato || '[INSERIR CONTA-CONTRATO]'}
+Codigo da UC:        ${fd.codigoUC || '[INSERIR CODIGO UC]'}
+Classe da UC:        ${fd.classeUC || 'Residencial'}
+Endereco:            ${fd.endereco || '[INSERIR ENDERECO COMPLETO]'}
+Cidade / UF:         ${fd.cidade || 'Porto Alegre'} / RS
+Latitude:            ${fd.latitude || '[INSERIR]'}
+Longitude:           ${fd.longitude || '[INSERIR]'}
+Transformador:       ${fd.transformador || '[CONSULTAR CEEE]'}
+Consumo medio:       ${fd.consumoMensalKwh ? fd.consumoMensalKwh + ' kWh/mes' : '[INSERIR CONSUMO MEDIO]'}
+Fatura referencia:   ${fd.numeroFatura || '[INSERIR N. FATURA]'}
+Distribuidora:       CEEE Equatorial (area de concessao Rio Grande do Sul)
+${fd.tipoPessoa === 'juridica' && fd.nomeRepresentante ? `
+Representante Legal: ${fd.nomeRepresentante}
+CPF Representante:   ${fd.cpfRepresentante || '[INSERIR]'}
+RG Representante:    ${fd.rgRepresentante || '[INSERIR]'}
+Cargo:               ${fd.cargoRepresentante || '[INSERIR]'}
+E-mail contato:      ${fd.emailContato || '[INSERIR]'}
+Telefone contato:    ${fd.telefoneContato || '[INSERIR]'}
+` : ''}
+3.x Sistema de Medicao
+Tipo de medicao: Bidirecional (instalacao e responsabilidade da CEEE Equatorial)
+No do medidor:   ${fd.numeroMedidor || '[a instalar pela CEEE]'}
+Classe da UC:    ${fd.classeUC || 'Residencial'}
 ${fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0 ? `
 3.1 SISTEMA FOTOVOLTAICO EXISTENTE (antes da ampliação)
 Módulos FV:         ${fd.numeroPaineisExistentes || '—'} módulos ${fd.modeloPainelExistente || '—'} — ${fd.potenciaWpExistente || '—'} Wp/unidade
@@ -127,19 +143,19 @@ Potência CA total:  ${calc.kWtCATotal} kW CA
 Enquadramento:      ${calc.enqTotal}
 ` : ''}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 4. PADRÃO DE ENTRADA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 4.1 Tipo de Ligação e Tensão de Atendimento
 • Tipo:             ${fd.tipoLigacao}
 • Número de fases:  ${fases[fd.tipoLigacao] || '[VERIFICAR]'}
 • Tensão nominal:   ${tensoes[fd.tipoLigacao] || '220 V'} / 60 Hz
 
-4.2 Disjuntor de Entrada
-• Corrente nominal (IDG): ${djCA} A
-• Número de pólos:        ${fd.tipoLigacao === 'Monofásico' ? '2 (bipolar)' : '3 (tripolar)'}
-• Curva de atuação:       C
-• Elemento de proteção:   Termomagnético
+4.2 Disjuntor e Ramal de Entrada
+• DJ Geral de Entrada (padrao):  ${fd.disjuntorEntrada || djCA} A — ${fd.tipoLigacao === 'Monofásico' ? '2P (bipolar)' : fd.tipoLigacao === 'Trifásico' ? '3P+N (quadripolar)' : '3P (tripolar)'}
+• Ramal de Entrada:              ${fd.ramalEntrada || '[INSERIR SECAO]'}
+• Transformador CEEE:            ${fd.transformador || '[CONSULTAR CEEE]'}
+• Curva de atuacao:              C — Termomagnético
 
 4.3 Potência Disponibilizada — Fórmula (NT.00020.EQTL-06 Seção 5.3)
   PD [kVA] = (VN × IDG × NF) / 1000
@@ -148,9 +164,9 @@ Enquadramento:      ${calc.enqTotal}
 
 A potência de injeção do gerador (${calc.kWtCA} kW CA) ${calc.kWtCA <= calc.potDispKW ? 'é inferior ou igual à' : 'supera a'} potência disponibilizada (${calc.potDispKW} kW), ${calc.kWtCA <= calc.potDispKW ? 'atendendo' : 'não atendendo'} ao requisito normativo.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 5. DIMENSIONAMENTO DO GERADOR FOTOVOLTAICO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 5.1 Características Técnicas dos Módulos FV
 
 | Parâmetro                          | Valor                    |
@@ -164,9 +180,10 @@ A potência de injeção do gerador (${calc.kWtCA} kW CA) ${calc.kWtCA <= calc.p
 | Eficiência                         | ${fd.eficienciaPainel || '[INSERIR]'} % |
 | Dimensões (C × L × E)             | [INSERIR] mm             |
 | Peso                               | [INSERIR] kg             |
-| Temperatura de operação nominal    | [INSERIR] °C             |
+| Temperatura de operação nominal    | ${fd.noct || '[INSERIR]'} oC (NOCT) |
 | Coef. temperatura Voc              | ${fd.coefTempVoc  || '[INSERIR]'} %/°C |
 | Tensão máxima do sistema           | 1000 V                   |
+| Certificação                       | ${fd.certificacaoPainel || '[INSERIR — ex: INMETRO/IEC 61215]'} |
 | Quantidade total                   | ${nPaineis} módulos      |
 | Potência total CC instalada        | ${calc.kWp} kWp          |
 
@@ -210,9 +227,9 @@ ${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3% (NBR 16690).
   : `${calc.dvccP <= 3 ? '✔ Queda de tensão CC dentro do limite de 3% (NBR 16690 — método conservador).' : '⚠ Verificar bitola do cabo CC — queda de dimensionamento superior a 3% (NBR 16690).'}
 (Preencha Vmpp e Impp no formulário para calcular ΔV operacional — grandeza normativa preferida.)`}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 6. DIMENSIONAMENTO DO INVERSOR
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 | Parâmetro                             | Valor                    |
 |---------------------------------------|--------------------------|
 | Fabricante / Modelo                   | ${modInv}                |
@@ -234,15 +251,15 @@ ${calc.dvccOpP <= 3 ? '✔ Queda operacional dentro do limite de 3% (NBR 16690).
 
 Relação CC/CA: ${calc.kWp > 0 && calc.kWtCA > 0 ? (calc.kWp / calc.kWtCA).toFixed(2) : '[CALCULAR]'} (faixa recomendada: 1,0–1,35 — alertas automáticos: < 0,70 ou > 1,35)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 7. ESTRUTURA DE FIXAÇÃO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 Tipo de cobertura: ${fd.tipoTelhado}
 [[[IA_NARRATIVA_SEC7]]]
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 8. DIMENSIONAMENTO DAS PROTEÇÕES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 String Box CC: ${fd.modeloStringBox || '(modelo a confirmar com o instalador)'}
 
 8.1 Disjuntor de Proteção CC (geral, antes do inversor)
@@ -304,9 +321,9 @@ PENDENTE: confirmar os valores reais de ajuste no datasheet e manual do inversor
 Referência normativa: PRODIST Módulo 3 — Acesso ao Sistema de Distribuição (vigente).
 | Monitoração de isolamento CC                       | Integrada   |
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 9. DIMENSIONAMENTO DOS CABOS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 9.1 Condutores em Corrente Contínua (CC)
 • Bitola: ${fd.secaoCaboCC || '6'} mm² (positivo e negativo)
 • Tipo: Cabo solar flexível dupla isolação, 1,8 kV CC, 90°C
@@ -332,9 +349,9 @@ ${calc.dvcaP <= 4 ? '✔ Queda de tensão CA dentro do limite de 4% (ABNT NBR 54
 • Circuitos CC e CA em dutos separados (NBR 16690 seção 5.4)
 • Identificação permanente a cada 3,0 m
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 10. ESTIMATIVA DE GERAÇÃO E IMPACTO AMBIENTAL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 10.1 Geração Estimada
 
 Fórmula: E(ano) = Pp × HSP × PR × 365
@@ -356,9 +373,9 @@ Dados calculados para composição do texto ambiental:
   CO₂ evitado em 25 anos: ${calc.co2Em25Anos.toLocaleString('pt-BR')} kg CO₂
   Equivalente em árvores: ${calc.arvoresEquivalente.toLocaleString('pt-BR')} árvores/ano
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 11. PLACAS E IDENTIFICAÇÕES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 Conforme NT.00020.EQTL-06 (Seção 10), devem ser instaladas placas de advertência com as seguintes especificações:
 
 • Material: Policarbonato com aditivos anti-raios UV
@@ -381,9 +398,9 @@ Posicionamento obrigatório:
   c) No String Box (proteção CC)
   d) Nas calhas e eletrodutos do sistema FV
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 12. COMISSIONAMENTO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 [[[IA_NARRATIVA_SEC12]]]
 
 12.1 Inspeção Prévia — Sistema CC
@@ -445,9 +462,9 @@ Equipamento: câmera de imagem térmica (resolução mínima 160×120 px).
 Pontos de inspeção: frente dos módulos FV, diodos de bypass, String Box, conectores MC4.
 Critério de aceitação: ausência de hotspots (pontos quentes > 10°C acima da média).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 13. EXPLORAÇÃO E MANUTENÇÃO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 13.1 Periodicidade de Verificações
 • Primeiros 5 anos de operação: ensaios e inspeções ANUAIS
 • A partir do 6° ano: ensaios e inspeções A CADA 2 ANOS
@@ -484,9 +501,9 @@ III. Falha geral: desligar disjuntor geral CA + todas as seccionadoras + informa
 • Verificar DPS (indicador luminoso): substituir se ativado
 • Aguardar descarga dos capacitores (≥ 5 min) antes de qualquer intervenção interna
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 14. NOTAS DE SEGURANÇA — NR-10
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 • Todos os serviços elétricos devem ser executados por profissionais habilitados e autorizados conforme NR-10 (Portaria MTE 598/2004).
 • Os módulos fotovoltaicos geram tensão CC assim que expostos à luz, mesmo em situações de emergência — não há forma de interromper a geração CC sem bloquear fisicamente a luz solar.
 • A tensão CC do barramento pode atingir ${calc.vocMax} V. Utilizar EPI adequado (luvas isolantes, capacetes e óculos de proteção) durante manutenção.
@@ -494,9 +511,9 @@ III. Falha geral: desligar disjuntor geral CA + todas as seccionadoras + informa
 • Em caso de incêndio: NUNCA usar água no sistema — utilizar extintor de CO₂ ou pó químico. Notificar o Corpo de Bombeiros informando a presença de sistema fotovoltaico.
 • Manter o Livro de Inspeção e os registros de ensaios disponíveis na instalação.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 15. NORMAS E ESPECIFICAÇÕES TÉCNICAS ADOTADAS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 • Lei Federal n° 14.300/2022 — Marco Legal da Geração Distribuída
 • REN ANEEL n° 1.000/2021 — Condições gerais de fornecimento e distribuição
 • NT.00020.EQTL-06 — Norma Técnica CEEE Equatorial (revisão dezembro/2025)
@@ -511,9 +528,9 @@ III. Falha geral: desligar disjuntor geral CA + todas as seccionadoras + informa
 • IEC 61727 — PV Systems — Characteristics of the Utility Interface
 • PRODIST Módulo 3 — Acesso ao Sistema de Distribuição
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 RESPONSÁVEL TÉCNICO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
 Nome:       ${fd.nomeResponsavel || '_______________________________'}
 CRT/CREA:   ${fd.numeroCRT || '_______________________________'}
 ART/TRT:    ${fd.numART || '_______________________________'}

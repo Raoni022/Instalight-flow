@@ -20,6 +20,15 @@ export interface FormData {
   consumoMensalKwh: string;
   numContaContrato: string;
 
+  // IDENTIFICAÇÃO DA UC / MEDIÇÃO
+  numeroMedidor:    string;  // Número de série do medidor
+  classeUC:         string;  // Residencial | Comercial | Industrial | Rural | Poder Público
+  latitude:         string;  // Coordenada GPS — latitude
+  longitude:        string;  // Coordenada GPS — longitude
+  transformador:    string;  // ID/número do transformador da distribuidora
+  disjuntorEntrada: string;  // Disjuntor geral do padrão de entrada (A) — padrão da UC
+  ramalEntrada:     string;  // Seção do cabo do ramal de entrada (ex: #25mm²)
+
   // SISTEMA FV
   tipoLigacao: TipoLigacao;
   numeroPaineis: string;
@@ -29,12 +38,14 @@ export interface FormData {
   stringParalelo: string;
 
   // MÓDULO FV — dados elétricos do datasheet (opcionais; usados pelo motor de cálculo)
-  vocUnitario:      string; // Voc por módulo (V)
-  iscUnitario:      string; // Isc por módulo (A)
-  vmppUnitario:     string; // Vmpp por módulo (V)
-  imppUnitario:     string; // Impp por módulo (A)
-  eficienciaPainel: string; // Eficiência (%)
-  coefTempVoc:      string; // Coef. temperatura Voc (%/°C)
+  vocUnitario:        string; // Voc por módulo (V)
+  iscUnitario:        string; // Isc por módulo (A)
+  vmppUnitario:       string; // Vmpp por módulo (V)
+  imppUnitario:       string; // Impp por módulo (A)
+  eficienciaPainel:   string; // Eficiência (%)
+  coefTempVoc:        string; // Coef. temperatura Voc (%/°C)
+  noct:               string; // Temperatura de Operação Nominal (°C)
+  certificacaoPainel: string; // Ex: INMETRO, IEC 61215
 
   // INVERSOR
   modeloInversor: string;
@@ -87,16 +98,22 @@ export interface FormData {
   enderecoEmpresa: string;
 
   // REPRESENTANTE LEGAL (somente para Pessoa Jurídica — titular da UC)
-  nomeRepresentante: string;
-  cpfRepresentante: string;
+  nomeRepresentante:  string;
+  cpfRepresentante:   string;
+  rgRepresentante:    string;  // RG / identidade
   cargoRepresentante: string;
+  inscricaoEstadual:  string;  // IE da empresa (Isento para prestadores de serviço)
+  emailContato:       string;  // E-mail corporativo de acompanhamento
+  telefoneContato:    string;  // Telefone de contato
 
   // SISTEMA EXISTENTE (somente para tipoInstalacao === 'Ampliação')
-  numeroPaineisExistentes: string;
-  modeloPainelExistente: string;
-  potenciaWpExistente: string;
-  modeloInversorExistente: string;
-  potenciaCAExistentekW: string;
+  numeroPaineisExistentes:    string;
+  modeloPainelExistente:      string;
+  potenciaWpExistente:        string;
+  noctExistente:              string;  // NOCT dos painéis existentes
+  certificacaoExistente:      string;  // Certificação dos painéis existentes
+  modeloInversorExistente:    string;
+  potenciaCAExistentekW:      string;
   quantidadeInversoresExistente: string;
 }
 

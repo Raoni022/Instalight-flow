@@ -6,7 +6,6 @@
  */
 
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import type { FormData } from '../types';
 
 /** Cria um novo documento jsPDF. */
@@ -38,20 +37,43 @@ export const pdfHeader = (doc: jsPDF, fd: FormData): void => {
 
 /**
  * Converte o SVGSVGElement da prancha em Blob PDF A3 landscape.
- * Reutilizado pelo ZIP e pelo botão "Exportar PDF" do DiagramasTab.
+ * Usa serialização nativa SVG→Canvas, SEM html2canvas
+ * (evita o erro "unable to find element in cloned iframe").
  */
 export async function pranchaSvgToPdfBlob(svgEl: SVGSVGElement): Promise<Blob> {
-  const canvas = await html2canvas(svgEl as unknown as HTMLElement, {
-    scale: 1.5,
-    useCORS: true,
-    backgroundColor: 'white',
+  const W = 1600, H = 980, scale = 1.5;
+
+  // Serializar SVG garantindo namespace (necessário para Image.src funcionar)
+  const raw = new XMLSerializer().serializeToString(svgEl);
+  const svgStr = raw.includes('xmlns=')
+    ? raw
+    : raw.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('Canvas context unavailable')); return; }
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const doc  = makePDF('l', 'a3');
+      const pW   = doc.internal.pageSize.getWidth();
+      const pH   = doc.internal.pageSize.getHeight();
+      doc.addImage(imgData, 'JPEG', 5, 5, pW - 10, pH - 10);
+      resolve(doc.output('blob'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao renderizar SVG para PDF')); };
+    img.src = url;
   });
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-  const doc = makePDF('l', 'a3');
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  doc.addImage(imgData, 'JPEG', 5, 5, W - 10, H - 10);
-  return doc.output('blob');
 }
 
 /** Rodapé padrão com normas, RT, cidade e paginação. */
@@ -121,9 +143,20 @@ export const addTextBlock = (
   const maxW = W - marginL - marginR;
   let y = startY;
 
+  // Mapeamento de caracteres especiais não suportados pelos fontes jsPDF padrão
+  const sanitize = (s: string) => s
+    .replace(/━/g, '-').replace(/─/g, '-').replace(/═/g, '=')
+    .replace(/°/g, 'o').replace(/²/g, '2').replace(/³/g, '3')
+    .replace(/√/g, 'sqrt').replace(/×/g, 'x').replace(/÷/g, '/')
+    .replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/≠/g, '!=')
+    .replace(/Ω/g, 'Ohm').replace(/µ/g, 'u').replace(/π/g, 'pi')
+    .replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
+    .replace(/✓/g, '[OK]').replace(/✔/g, '[OK]').replace(/✗/g, '[X]')
+    .replace(/⚠/g, '[!]').replace(/⋯/g, '...');
+
   text.split('\n').forEach((raw) => {
     const bold = raw.startsWith('**') && raw.endsWith('**');
-    const clean = bold ? raw.slice(2, -2) : raw;
+    const clean = sanitize(bold ? raw.slice(2, -2) : raw);
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
     const wrapped = doc.splitTextToSize(clean, maxW) as string[];
     wrapped.forEach((line: string) => {

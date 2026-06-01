@@ -8,8 +8,7 @@ import type { FormData, Calculos } from '../../types';
 import { PranchaCompleta } from '../../svg/PranchaCompleta';
 import type { TipoDiagrama } from '../../svg/PranchaCompleta';
 import { makeFilename } from '../../helpers/filename';
-import { makePDF } from '../../helpers/pdf';
-import html2canvas from 'html2canvas';
+import { pranchaSvgToPdfBlob } from '../../helpers/pdf';
 
 interface DiagramasTabProps {
   fd: FormData;
@@ -41,17 +40,12 @@ export const DiagramasTab: React.FC<DiagramasTabProps> = ({ fd, calc, svgRef }) 
     const svg = svgRef.current;
     if (!svg) return;
     try {
-      const canvas = await html2canvas(svg as unknown as HTMLElement, {
-        scale: 1.5,
-        useCORS: true,
-        backgroundColor: 'white',
-      });
-      const img = canvas.toDataURL('image/jpeg', 0.92);
-      const doc = makePDF('l', 'a3');
-      const W = doc.internal.pageSize.getWidth();
-      const H = doc.internal.pageSize.getHeight();
-      doc.addImage(img, 'JPEG', 5, 5, W - 10, H - 10);
-      doc.save(makeFilename(`prancha_${tipoDiagrama}`, fd));
+      const blob = await pranchaSvgToPdfBlob(svg);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = makeFilename(`prancha_${tipoDiagrama}`, fd, 'pdf');
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e: unknown) {
       alert('Erro ao gerar PDF: ' + (e instanceof Error ? e.message : String(e)));
     }

@@ -69,12 +69,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Conta-Contrato UC" name="numContaContrato" value={fd.numContaContrato} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678" />
         <FormField label="Nº Fatura" name="numeroFatura" value={fd.numeroFatura} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Consumo médio mensal (kWh)" name="consumoMensalKwh" value={fd.consumoMensalKwh} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 350" />
+        <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Medição e Entrada</div>
+        <FormField label="Nº do Medidor" name="numeroMedidor" value={fd.numeroMedidor} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678" />
+        <FormField label="Classe da UC" name="classeUC" value={fd.classeUC} onChange={onChange}
+          options={['Residencial','Comercial','Industrial','Rural','Poder Público','Iluminação Pública']} aiFields={aiFilledFields} />
+        <FormField label="Transformador (ID)" name="transformador" value={fd.transformador} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: TR-4521" />
+        <FormField label="DJ Entrada (A)" name="disjuntorEntrada" value={fd.disjuntorEntrada} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 63" />
+        <FormField label="Ramal de Entrada" name="ramalEntrada" value={fd.ramalEntrada} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: #25mm²" />
+        <FormField label="Latitude" name="latitude" value={fd.latitude} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -30.0368" />
+        <FormField label="Longitude" name="longitude" value={fd.longitude} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -51.2090" />
         {fd.tipoPessoa === 'juridica' && (
           <>
             <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Representante Legal</div>
             <FormField label="Nome do Representante" name="nomeRepresentante" value={fd.nomeRepresentante} onChange={onChange} aiFields={aiFilledFields} />
             <FormField label="CPF do Representante" name="cpfRepresentante" value={fd.cpfRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="000.000.000-00" />
+            <FormField label="RG do Representante" name="rgRepresentante" value={fd.rgRepresentante} onChange={onChange} aiFields={aiFilledFields} />
             <FormField label="Cargo / Função" name="cargoRepresentante" value={fd.cargoRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Sócio-Administrador" />
+            <FormField label="Inscrição Estadual" name="inscricaoEstadual" value={fd.inscricaoEstadual} onChange={onChange} aiFields={aiFilledFields} placeholder="Isento ou número" />
+            <FormField label="E-mail de Contato" name="emailContato" value={fd.emailContato} onChange={onChange} aiFields={aiFilledFields} placeholder="contato@empresa.com" />
+            <FormField label="Telefone de Contato" name="telefoneContato" value={fd.telefoneContato} onChange={onChange} aiFields={aiFilledFields} placeholder="(51) 9xxxx-xxxx" />
           </>
         )}
       </CollapsibleSection>
@@ -103,6 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Impp unitário (A)" name="imppUnitario" value={fd.imppUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 13.05" />
         <FormField label="Eficiência (%)" name="eficienciaPainel" value={fd.eficienciaPainel} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 21.3" />
         <FormField label="Coef. Temp. Voc (%/°C)" name="coefTempVoc" value={fd.coefTempVoc} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -0.27" />
+        <FormField label="NOCT (°C)" name="noct" value={fd.noct} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 45" />
+        <FormField label="Certificação" name="certificacaoPainel" value={fd.certificacaoPainel} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: INMETRO / IEC 61215" />
         {(calc.vmppString > 0 || calc.imppTotal > 0) && (
           <div className="text-xs text-slate-500 bg-slate-50 rounded p-2 space-y-0.5">
             {calc.vmppString > 0 && <div>Vmpp string: <strong>{calc.vmppString} V</strong></div>}
@@ -119,6 +134,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <FormField label="Painéis existentes (qtd)" name="numeroPaineisExistentes" value={fd.numeroPaineisExistentes} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 8" />
           <FormField label="Modelo painel existente"  name="modeloPainelExistente"   value={fd.modeloPainelExistente}   onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Canadian Solar 400W" />
           <FormField label="Potência Wp (existente)"  name="potenciaWpExistente"     value={fd.potenciaWpExistente}     onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 400" />
+          <FormField label="NOCT existente (°C)"     name="noctExistente"           value={fd.noctExistente}           onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 45" />
+          <FormField label="Certificação (exist.)"   name="certificacaoExistente"   value={fd.certificacaoExistente}   onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: IEC 61215" />
           <FormField label="Inversor existente"       name="modeloInversorExistente" value={fd.modeloInversorExistente} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Growatt 3kW" />
           <FormField label="Potência CA kW (exist.)"  name="potenciaCAExistentekW"   value={fd.potenciaCAExistentekW}   onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 3" />
           <FormField label="Qtd inversores (exist.)"  name="quantidadeInversoresExistente" value={fd.quantidadeInversoresExistente} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 1" />
