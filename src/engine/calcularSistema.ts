@@ -187,6 +187,22 @@ export function calcularSistema(fd: FormData): Calculos {
   const enq   = kWp <= 75 ? 'Microgeração Distribuída' : 'Minigeração Distribuída';
   const prazo = kWp <= 75 ? '15 dias (sem obra) / 30 dias (com obra)' : '60 dias';
 
+  // ══════════════════════════════════════════════════════════════
+  // AMPLIAÇÃO — potência existente + total
+  // ══════════════════════════════════════════════════════════════
+  const isAmpl = fd.tipoInstalacao === 'Ampliação';
+  const kWpExistente = isAmpl
+    ? parseFloat(((num(fd.numeroPaineisExistentes) * num(fd.potenciaWpExistente)) / 1000).toFixed(3))
+    : 0;
+  const kWtCAExistente = isAmpl
+    ? parseFloat((num(fd.potenciaCAExistentekW) * num(fd.quantidadeInversoresExistente, 1)).toFixed(3))
+    : 0;
+  const kWpTotal    = parseFloat((kWp + kWpExistente).toFixed(3));
+  const kWtCATotal  = parseFloat((kWtCA + kWtCAExistente).toFixed(3));
+  const enqTotal    = kWpTotal <= 75
+    ? 'Microgeração Distribuída'
+    : 'Minigeração Distribuída';
+
   return {
     kWp, kWtCA,
     vocStr, vocMax,
@@ -202,5 +218,6 @@ export function calcularSistema(fd: FormData): Calculos {
     percentualAtendimento,
     vmppString, imppTotal, dvccOpV, dvccOpP,
     vocMaxCorr,
+    kWpExistente, kWtCAExistente, kWpTotal, kWtCATotal, enqTotal,
   };
 }

@@ -90,6 +90,14 @@ export interface FormData {
   nomeRepresentante: string;
   cpfRepresentante: string;
   cargoRepresentante: string;
+
+  // SISTEMA EXISTENTE (somente para tipoInstalacao === 'Ampliação')
+  numeroPaineisExistentes: string;
+  modeloPainelExistente: string;
+  potenciaWpExistente: string;
+  modeloInversorExistente: string;
+  potenciaCAExistentekW: string;
+  quantidadeInversoresExistente: string;
 }
 
 // ── Resultados de cálculo (motor JS — IA nunca calcula) ──────────────────
@@ -153,6 +161,18 @@ export interface Calculos {
   co2Em25Anos: number;
   /** Percentual do consumo anual atendido pela geração (null se consumo não informado) */
   percentualAtendimento: number | null;
+
+  // ── Ampliação ─────────────────────────────────────────────────────────────
+  /** Potência CC do sistema existente (0 quando Nova instalação) */
+  kWpExistente: number;
+  /** Potência CA do sistema existente (0 quando Nova instalação) */
+  kWtCAExistente: number;
+  /** Potência CC total = nova + existente */
+  kWpTotal: number;
+  /** Potência CA total = nova + existente */
+  kWtCATotal: number;
+  /** Enquadramento regulatório pelo kWpTotal */
+  enqTotal: string;
 
   /** Vmpp da string completa (V) — 0 se vmppUnitario não informado */
   vmppString: number;

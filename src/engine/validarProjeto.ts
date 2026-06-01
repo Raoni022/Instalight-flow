@@ -202,11 +202,21 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   }
 
   // ── Potência injetada vs. disponibilizada ────────────────────
-  if (calc.potDispKW > 0 && calc.kWtCA > calc.potDispKW) {
+  // Para Ampliação: usa kWtCATotal (nova + existente) pois ambos injetam na rede
+  const potInjetada = calc.kWtCATotal > 0 ? calc.kWtCATotal : calc.kWtCA;
+  if (calc.potDispKW > 0 && potInjetada > calc.potDispKW) {
     e('PD01',
-      `Potência injetada pelo inversor (${calc.kWtCA} kW CA) supera a potência disponibilizada ` +
-      `no padrão de entrada (${calc.potDispKW} kW). ` +
+      `Potência total injetada (${potInjetada} kW CA${calc.kWtCAExistente > 0 ? ` = ${calc.kWtCA} kW novo + ${calc.kWtCAExistente} kW existente` : ''}) ` +
+      `supera a potência disponibilizada no padrão de entrada (${calc.potDispKW} kW). ` +
       `Reduza a potência CA ou solicite aumento de carga à distribuidora. [NT.00020.EQTL-06 §5.3]`
+    );
+  }
+
+  // ── Ampliação — informativo de potência total ─────────────────
+  if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
+    i('AMP01',
+      `Ampliação: ${calc.kWpExistente} kWp existentes + ${calc.kWp} kWp novos = ` +
+      `${calc.kWpTotal} kWp total. Enquadramento pelo total: ${calc.enqTotal}.`
     );
   }
 

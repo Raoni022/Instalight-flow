@@ -112,6 +112,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </CollapsibleSection>
 
+      {/* ── SISTEMA EXISTENTE (só para Ampliação) ── */}
+      {fd.tipoInstalacao === 'Ampliação' && (
+        <CollapsibleSection title="Sistema Existente" icon="🔧" defaultOpen>
+          <p className="text-xs text-slate-400 italic mb-2">Informe o que já está instalado antes desta ampliação.</p>
+          <FormField label="Painéis existentes (qtd)" name="numeroPaineisExistentes" value={fd.numeroPaineisExistentes} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 8" />
+          <FormField label="Modelo painel existente"  name="modeloPainelExistente"   value={fd.modeloPainelExistente}   onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Canadian Solar 400W" />
+          <FormField label="Potência Wp (existente)"  name="potenciaWpExistente"     value={fd.potenciaWpExistente}     onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 400" />
+          <FormField label="Inversor existente"       name="modeloInversorExistente" value={fd.modeloInversorExistente} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Growatt 3kW" />
+          <FormField label="Potência CA kW (exist.)"  name="potenciaCAExistentekW"   value={fd.potenciaCAExistentekW}   onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 3" />
+          <FormField label="Qtd inversores (exist.)"  name="quantidadeInversoresExistente" value={fd.quantidadeInversoresExistente} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 1" />
+          <div className="flex flex-col gap-0.5 bg-blue-50 border border-blue-100 rounded px-2 py-1.5 text-xs mt-1">
+            <div className="flex gap-2">
+              <span className="text-slate-500">CC total após ampliação:</span>
+              <span className="font-bold text-blue-700">{calc.kWpTotal} kWp</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-slate-500">Enquadramento (total):</span>
+              <span className="font-semibold text-blue-700">{calc.enqTotal}</span>
+            </div>
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* ── INVERSOR ── */}
       <CollapsibleSection title="Inversor" icon="⚡">
         <FormField label="Modelo do Inversor" name="modeloInversor" value={fd.modeloInversor} onChange={onChange} aiFields={aiFilledFields} />

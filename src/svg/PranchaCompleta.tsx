@@ -12,14 +12,17 @@ import { DiagramaUnifilarVertical } from './DiagramaUnifilarVertical';
 import { DiagramaMultifilarMelhorado } from './DiagramaMultifilarMelhorado';
 import { GndSym, CBSym, DPSSym, PanelCell } from './symbols';
 
+export type TipoDiagrama = 'ambos' | 'unifilar' | 'multifilar';
+
 interface Props {
   fd: FormData;
   calc: Calculos;
+  tipoDiagrama?: TipoDiagrama;
 }
 
 const num = (v: string | undefined, d = 0): number => parseFloat(v ?? '') || d;
 
-export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, ref) => {
+export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tipoDiagrama = 'ambos' }, ref) => {
   const W = 1600;
   const H = 980;
 
@@ -81,13 +84,19 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
 
       {/* Título central */}
       <text x={W / 2} y={24} fontSize="14" fill="white" textAnchor="middle" fontWeight="700" fontFamily="sans-serif">
-        PRANCHA ELÉTRICA — SISTEMA FOTOVOLTAICO ON-GRID
+        {tipoDiagrama === 'unifilar'
+          ? 'DIAGRAMA UNIFILAR — SISTEMA FOTOVOLTAICO ON-GRID'
+          : tipoDiagrama === 'multifilar'
+            ? 'DIAGRAMA MULTIFILAR — SISTEMA FOTOVOLTAICO ON-GRID'
+            : 'PRANCHA ELÉTRICA — SISTEMA FOTOVOLTAICO ON-GRID'}
       </text>
       <text x={W / 2} y={40} fontSize="10" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
         {fd.nomeCliente || 'Cliente'} | UC: {fd.codigoUC || '—'} | {fd.endereco || 'Endereço'}
       </text>
       <text x={W / 2} y={56} fontSize="9" fill={org} textAnchor="middle" fontFamily="sans-serif">
-        {calc.enq} | {calc.kWp} kWp CC / {calc.kWtCA} kW CA | {fd.tipoLigacao} | CEEE Equatorial
+        {calc.enqTotal} | {fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0
+          ? `+${calc.kWp} kWp (total: ${calc.kWpTotal} kWp)`
+          : `${calc.kWp} kWp CC / ${calc.kWtCA} kW CA`} | {fd.tipoLigacao} | CEEE Equatorial
       </text>
 
       {/* Mini carimbo direita */}
@@ -114,17 +123,23 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc }, r
 
       {/* ══════ COLUNA ESQUERDA — UNIFILAR VERTICAL ══════ */}
       <rect x={0} y={HD} width={UNI_W} height={H - HD - CB_H - FT_H} fill="white" />
-      <line x1={UNI_W} y1={HD} x2={UNI_W} y2={CB_Y} stroke={sl} strokeWidth="1" />
-      <g transform={`translate(0,${HD + 10})`}>
-        <DiagramaUnifilarVertical fd={fd} calc={calc} />
-      </g>
+      {tipoDiagrama !== 'multifilar' && (
+        <line x1={UNI_W} y1={HD} x2={UNI_W} y2={CB_Y} stroke={sl} strokeWidth="1" />
+      )}
+      {(tipoDiagrama === 'ambos' || tipoDiagrama === 'unifilar') && (
+        <g transform={`translate(0,${HD + 10})`}>
+          <DiagramaUnifilarVertical fd={fd} calc={calc} />
+        </g>
+      )}
 
       {/* ══════ COLUNA DIREITA — MULTIFILAR ══════ */}
       <rect x={RIG_X} y={MF_Y} width={W - RIG_X} height={MF_H} fill="white" />
       <line x1={RIG_X} y1={MF_Y + MF_H} x2={W} y2={MF_Y + MF_H} stroke={sl} strokeWidth="1" />
-      <g transform={`translate(${RIG_X + 12},${MF_Y + 14})`}>
-        <DiagramaMultifilarMelhorado fd={fd} calc={calc} />
-      </g>
+      {(tipoDiagrama === 'ambos' || tipoDiagrama === 'multifilar') && (
+        <g transform={`translate(${RIG_X + 12},${MF_Y + 14})`}>
+          <DiagramaMultifilarMelhorado fd={fd} calc={calc} />
+        </g>
+      )}
 
       {/* ══════ PADRÃO DE ENTRADA (520×220) ══════ */}
       <rect x={RIG_X} y={D1_Y} width={520} height={D1_H} fill="white" />

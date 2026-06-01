@@ -116,9 +116,18 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   doc.text('DADOS DO SISTEMA', 14, y);
   y += 8;
   linha('Tipo de Instalação', fd.tipoInstalacao || 'Nova');
-  linha('Tipo de Geração', calc.enq);
-  linha('Potência CC instalada', `${calc.kWp} kWp`);
-  linha('Potência CA nominal', `${calc.kWtCA} kW`);
+  linha('Tipo de Geração', calc.enqTotal);
+  if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
+    linha('Potência CC — nova instalação', `${calc.kWp} kWp`);
+    linha('Potência CC — existente', `${calc.kWpExistente} kWp`);
+    linha('Potência CC — TOTAL', `${calc.kWpTotal} kWp`);
+    linha('Potência CA — nova instalação', `${calc.kWtCA} kW`);
+    linha('Potência CA — existente', `${calc.kWtCAExistente} kW`);
+    linha('Potência CA — TOTAL', `${calc.kWtCATotal} kW`);
+  } else {
+    linha('Potência CC instalada', `${calc.kWp} kWp`);
+    linha('Potência CA nominal', `${calc.kWtCA} kW`);
+  }
   linha('Tipo de Ligação', fd.tipoLigacao);
   if (fd.coordenadas) linha('Coordenadas GPS', fd.coordenadas);
   linha(

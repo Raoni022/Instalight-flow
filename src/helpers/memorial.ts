@@ -111,6 +111,21 @@ Coordenadas:        ${fd.coordenadas || '[INSERIR COORDENADAS UTM]'}
 Consumo médio:      ${fd.consumoMensalKwh ? fd.consumoMensalKwh + ' kWh/mês' : '[INSERIR CONSUMO MÉDIO]'}
 Fatura referência:  ${fd.numeroFatura || '[INSERIR Nº FATURA]'}
 Distribuidora:      CEEE Equatorial (área de concessão Rio Grande do Sul)
+${fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0 ? `
+3.1 SISTEMA FOTOVOLTAICO EXISTENTE (antes da ampliação)
+Módulos FV:         ${fd.numeroPaineisExistentes || '—'} módulos ${fd.modeloPainelExistente || '—'} — ${fd.potenciaWpExistente || '—'} Wp/unidade
+Inversor:           ${fd.modeloInversorExistente || '—'} — ${fd.potenciaCAExistentekW || '—'} kW CA × ${fd.quantidadeInversoresExistente || '1'} unidade(s)
+Potência CC (exist): ${calc.kWpExistente} kWp
+Potência CA (exist): ${calc.kWtCAExistente} kW
+
+3.2 NOVA INSTALAÇÃO — OBJETO DESTE MEMORIAL
+(descrição detalhada nas seções 5 e 6 abaixo)
+
+3.3 SISTEMA TOTAL APÓS AMPLIAÇÃO
+Potência CC total:  ${calc.kWpTotal} kWp
+Potência CA total:  ${calc.kWtCATotal} kW CA
+Enquadramento:      ${calc.enqTotal}
+` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 4. PADRÃO DE ENTRADA

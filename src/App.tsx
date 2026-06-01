@@ -52,6 +52,8 @@ export const INITIAL_FORM: FormData = {
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
   nomeRepresentante: '', cpfRepresentante: '', cargoRepresentante: '',
+  numeroPaineisExistentes: '', modeloPainelExistente: '', potenciaWpExistente: '',
+  modeloInversorExistente: '', potenciaCAExistentekW: '', quantidadeInversoresExistente: '',
 };
 
 const INITIAL_DOCS: DocsGerados = {
@@ -312,11 +314,11 @@ export default function App() {
   const exportarTudo = useCallback(async () => {
     const errosCriticos = validacoes.filter((x) => x.nivel === 'erro');
     if (errosCriticos.length > 0) {
+      // Avisa mas NÃO bloqueia — o usuário decide se quer exportar assim mesmo
       setToast({
-        message: `Exportação bloqueada: ${errosCriticos.length} erro(s) crítico(s). Corrija os itens em vermelho.`,
-        type: 'error',
+        message: `⚠ Exportando com ${errosCriticos.length} pendência(s). Revise antes do protocolo CEEE.`,
+        type: 'warning',
       });
-      return;
     }
 
     setToast({
