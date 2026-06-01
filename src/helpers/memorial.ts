@@ -9,7 +9,7 @@
  */
 
 import type { FormData, Calculos } from '../types';
-import { IRRAD, PR, TARIFA } from '../constants';
+import { IRRAD, PR, TARIFA, CO2_FACTOR } from '../constants';
 
 const num = (v: string | undefined, d = 0): number => parseFloat(v ?? '') || d;
 
@@ -43,6 +43,7 @@ export function buildMemorialTemplate(fd: FormData, calc: Calculos): string {
   return `MEMORIAL TÉCNICO-DESCRITIVO
 SISTEMA DE ${calc.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
 Elaborado conforme NT.00020.EQTL-06 (CEEE Equatorial) e ABNT NBR 16690
+Nº do Projeto (PE): ${fd.numProjeto || '[INSERIR]'} | ART/TRT: ${fd.numART || '[INSERIR]'} | Data: ${hoje}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LISTA DE SIGLAS E ABREVIATURAS
@@ -336,7 +337,7 @@ Economia financeira estimada: R$ ${calc.economiaAnual.toLocaleString('pt-BR')}/a
 [[[IA_NARRATIVA_SEC10]]]
 
 Dados calculados para composição do texto ambiental:
-  CO₂ evitado/ano: ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg CO₂ (fator SIN: 0,10 kgCO₂/kWh)
+  CO₂ evitado/ano: ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg CO₂ (fator SIN: ${CO2_FACTOR} kgCO₂/kWh)
   CO₂ evitado em 25 anos: ${calc.co2Em25Anos.toLocaleString('pt-BR')} kg CO₂
   Equivalente em árvores: ${calc.arvoresEquivalente.toLocaleString('pt-BR')} árvores/ano
 
@@ -500,8 +501,13 @@ RESPONSÁVEL TÉCNICO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Nome:       ${fd.nomeResponsavel || '_______________________________'}
 CRT/CREA:   ${fd.numeroCRT || '_______________________________'}
+ART/TRT:    ${fd.numART || '_______________________________'}
 Empresa:    ${fd.nomeEmpresa || 'Instalight Energia Solar'}
 Data:       ${hoje}
+
+OBSERVAÇÕES DO RESPONSÁVEL TÉCNICO:
+_______________________________________________
+_______________________________________________
 
 Assinatura: _______________________________
 

@@ -6,6 +6,7 @@
  */
 
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import type { FormData } from '../types';
 
 /** Cria um novo documento jsPDF. */
@@ -27,12 +28,31 @@ export const pdfHeader = (doc: jsPDF, fd: FormData): void => {
   doc.text('GD Docs — Instalight', 14, 13);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
+  const peTag = fd.numProjeto ? ` | PE: ${fd.numProjeto}` : '';
   const sub = fd.nomeCliente
-    ? `Cliente: ${fd.nomeCliente} | UC: ${fd.codigoUC || '—'}`
+    ? `Cliente: ${fd.nomeCliente} | UC: ${fd.codigoUC || '—'}${peTag}`
     : 'Sistema de Geração Distribuída';
   doc.text(sub, 14, 18);
   doc.setTextColor(30, 30, 30);
 };
+
+/**
+ * Converte o SVGSVGElement da prancha em Blob PDF A3 landscape.
+ * Reutilizado pelo ZIP e pelo botão "Exportar PDF" do DiagramasTab.
+ */
+export async function pranchaSvgToPdfBlob(svgEl: SVGSVGElement): Promise<Blob> {
+  const canvas = await html2canvas(svgEl as unknown as HTMLElement, {
+    scale: 1.5,
+    useCORS: true,
+    backgroundColor: 'white',
+  });
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  const doc = makePDF('l', 'a3');
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  doc.addImage(imgData, 'JPEG', 5, 5, W - 10, H - 10);
+  return doc.output('blob');
+}
 
 /** Rodapé padrão com normas, RT, cidade e paginação. */
 export const pdfFooter = (

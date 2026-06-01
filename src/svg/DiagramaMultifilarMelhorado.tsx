@@ -7,6 +7,7 @@
 
 import React from 'react';
 import type { FormData, Calculos } from '../types';
+import { DPSSym } from './symbols';
 
 interface Props {
   fd: FormData;
@@ -73,6 +74,12 @@ export const DiagramaMultifilarMelhorado: React.FC<Props> = ({ fd }) => {
 
   const SPEC_CC = `#${fd.secaoCaboCC || '6'}mm² PVC 70° 750V`;
   const SPEC_CA = `#${fd.secaoCaboCA || '6'}mm² PVC 70° 750V`;
+
+  // DPS CC — posicionado entre STR.BOX e INVERSOR
+  const fmtDPS = (t: string | undefined) => { const m = (t ?? '').match(/\d/); return m ? `T${m[0]}` : 'T2'; };
+  const dpsTipoCC = fmtDPS(fd.dpsCCTipo);
+  const DPS_X = Math.round((SBX + 28 + INX - 44) / 2); // ponto médio entre blocos
+  const DPS_Y = ccY0 + Math.round((nStr * strSp) / 2);  // centro vertical da seção CC
 
   return (
     <g>
@@ -154,6 +161,12 @@ export const DiagramaMultifilarMelhorado: React.FC<Props> = ({ fd }) => {
           </text>
         </g>
       ))}
+
+      {/* DPS CC — proteção entre STR.BOX e INVERSOR (NBR 16690 §7.4) */}
+      <DPSSym x={DPS_X} y={DPS_Y} c={red} />
+      <text x={DPS_X} y={DPS_Y + 28} fontSize="6" fill={red} textAnchor="middle" fontFamily="sans-serif">
+        DPS {dpsTipoCC} {fd.dpsCCTensao || '1000'}V CC
+      </text>
 
       {/* Condutores CA */}
       {conds.map((c, i) => {

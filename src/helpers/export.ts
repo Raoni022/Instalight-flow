@@ -19,10 +19,17 @@ import { makeFilename } from './filename';
 /** Gera o texto completo da Procuração Específica. */
 export function gerarTextoProcuracao(fd: FormData, calc: Calculos): string {
   const hoje = fd.dataproject || new Date().toLocaleDateString('pt-BR');
+  const repBlock = fd.tipoPessoa === 'juridica' && fd.nomeRepresentante
+    ? `, neste ato representada por ${fd.nomeRepresentante}, ` +
+      `portador(a) do CPF nº ${fd.cpfRepresentante || '___'}, ` +
+      `na qualidade de ${fd.cargoRepresentante || 'representante legal'}, ` +
+      `nos termos do contrato/estatuto social`
+    : '';
+
   const tipoPessoa =
     fd.tipoPessoa === 'fisica'
       ? `${fd.nomeCliente || '___'}, CPF nº ${fd.cpfCnpj || '___'}, residente e domiciliado(a) em ${fd.endereco || '___'}`
-      : `${fd.nomeCliente || '___'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cpfCnpj || '___'}, com sede em ${fd.endereco || '___'}`;
+      : `${fd.nomeCliente || '___'}, pessoa jurídica de direito privado, inscrita no CNPJ sob nº ${fd.cpfCnpj || '___'}, com sede em ${fd.endereco || '___'}${repBlock}`;
 
   const np = parseFloat(fd.numeroPaineis) || 0;
 
@@ -113,6 +120,7 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   linha('Potência CC instalada', `${calc.kWp} kWp`);
   linha('Potência CA nominal', `${calc.kWtCA} kW`);
   linha('Tipo de Ligação', fd.tipoLigacao);
+  if (fd.coordenadas) linha('Coordenadas GPS', fd.coordenadas);
   linha(
     'Módulos FV',
     `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`,

@@ -1,8 +1,8 @@
 /**
  * zip.ts — Empacotamento do dossiê completo em arquivo ZIP
  *
- * Coleta todos os documentos (prancha SVG + 4 PDFs) e entrega
- * um único arquivo .zip ao usuário, em vez de 5 downloads sequenciais.
+ * Coleta todos os documentos (prancha SVG + prancha PDF + 4 PDFs) e entrega
+ * um único arquivo .zip ao usuário, em vez de downloads sequenciais.
  */
 
 import JSZip from 'jszip';
@@ -18,11 +18,12 @@ import {
 /**
  * Gera e dispara o download do dossiê completo em formato ZIP.
  *
- * @param fd          - Dados do formulário
- * @param calc        - Cálculos técnicos do motor JS
- * @param memorialIA  - Texto do memorial (gerado pela IA ou modo básico)
- * @param docsGerados - Estado de documentos gerados (para checklist de pendências)
- * @param svgString   - Prancha elétrica serializada como SVG (string XML)
+ * @param fd             - Dados do formulário
+ * @param calc           - Cálculos técnicos do motor JS
+ * @param memorialIA     - Texto do memorial (gerado pela IA ou modo básico)
+ * @param docsGerados    - Estado de documentos gerados (para checklist de pendências)
+ * @param svgString      - Prancha elétrica serializada como SVG (string XML)
+ * @param pranchaPdfBlob - Prancha elétrica em PDF A3 (opcional, gerado externamente)
  */
 export async function exportarDossieZip(
   fd: FormData,
@@ -30,12 +31,18 @@ export async function exportarDossieZip(
   memorialIA: string,
   docsGerados: DocsGerados,
   svgString: string,
+  pranchaPdfBlob?: Blob,
 ): Promise<void> {
   const zip = new JSZip();
 
   // ── Grupo B: Prancha elétrica (SVG) ──────────────────────────
   if (svgString) {
     zip.file(makeFilename('prancha', fd, 'svg'), svgString);
+  }
+
+  // ── Grupo B: Prancha elétrica (PDF A3) ───────────────────────
+  if (pranchaPdfBlob) {
+    zip.file(makeFilename('prancha', fd, 'pdf'), pranchaPdfBlob);
   }
 
   // ── Grupo B: Memorial técnico-descritivo ─────────────────────
@@ -63,6 +70,5 @@ export async function exportarDossieZip(
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // Pequeno atraso antes de revogar para garantir que o download iniciou
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

@@ -75,9 +75,11 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
     { id: 'A4', doc: 'Fatura de energia recente',      gerado: false,                     como: 'Solicitar fatura dos últimos 3 meses' },
   ];
 
+  const diagramasOk = calc.kWp > 0 && !!fd.tipoLigacao && !!fd.nomeCliente;
+
   const groupB = [
-    { id: 'B1', doc: 'Diagrama Unifilar',              gerado: true,                      como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF' },
-    { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)',   gerado: true,                      como: 'Incluído na mesma prancha da aba "Diagramas"' },
+    { id: 'B1', doc: 'Diagrama Unifilar',              gerado: diagramasOk,               como: 'Preencha os dados do projeto e exporte na aba "Diagramas"' },
+    { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)',   gerado: diagramasOk,               como: 'Incluído na mesma prancha da aba "Diagramas"' },
     { id: 'B3', doc: 'Planta de Situação / Locação',   gerado: false,
       como: 'Capturar print do Google Maps com escala e norte indicados',
       link: fd.endereco ? `https://maps.google.com/?q=${encodeURIComponent(fd.endereco)}` : undefined },

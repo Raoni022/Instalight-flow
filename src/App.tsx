@@ -17,6 +17,7 @@ import { calcularSistema }   from './engine/calcularSistema';
 import { validarProjeto }    from './engine/validarProjeto';
 import { LS_KEY }            from './constants';
 import { exportarDossieZip } from './helpers/zip';
+import { pranchaSvgToPdfBlob } from './helpers/pdf';
 
 import type { FormData, Toast, DocsGerados, ProjetoSalvo, StatusProjeto } from './types';
 
@@ -50,6 +51,7 @@ export const INITIAL_FORM: FormData = {
   nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
+  nomeRepresentante: '', cpfRepresentante: '', cargoRepresentante: '',
 };
 
 const INITIAL_DOCS: DocsGerados = {
@@ -326,7 +328,10 @@ export default function App() {
       : '';
 
     try {
-      await exportarDossieZip(formData, calc, memorialIA, docsGerados, svgString);
+      const pranchaPdfBlob = svgRef.current
+        ? await pranchaSvgToPdfBlob(svgRef.current).catch(() => undefined)
+        : undefined;
+      await exportarDossieZip(formData, calc, memorialIA, docsGerados, svgString, pranchaPdfBlob);
       setToast({ message: '✅ Dossiê ZIP exportado com sucesso!', type: 'success' });
     } catch (err) {
       setToast({ message: 'Erro ao gerar ZIP: ' + String(err), type: 'error' });

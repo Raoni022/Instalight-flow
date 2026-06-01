@@ -85,6 +85,11 @@ export interface FormData {
   nomeEmpresa: string;
   cnpjEmpresa: string;
   enderecoEmpresa: string;
+
+  // REPRESENTANTE LEGAL (somente para Pessoa Jurídica — titular da UC)
+  nomeRepresentante: string;
+  cpfRepresentante: string;
+  cargoRepresentante: string;
 }
 
 // ── Resultados de cálculo (motor JS — IA nunca calcula) ──────────────────

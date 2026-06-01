@@ -69,6 +69,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <FormField label="Conta-Contrato UC" name="numContaContrato" value={fd.numContaContrato} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678" />
         <FormField label="Nº Fatura" name="numeroFatura" value={fd.numeroFatura} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Consumo médio mensal (kWh)" name="consumoMensalKwh" value={fd.consumoMensalKwh} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 350" />
+        {fd.tipoPessoa === 'juridica' && (
+          <>
+            <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Representante Legal</div>
+            <FormField label="Nome do Representante" name="nomeRepresentante" value={fd.nomeRepresentante} onChange={onChange} aiFields={aiFilledFields} />
+            <FormField label="CPF do Representante" name="cpfRepresentante" value={fd.cpfRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="000.000.000-00" />
+            <FormField label="Cargo / Função" name="cargoRepresentante" value={fd.cargoRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Sócio-Administrador" />
+          </>
+        )}
       </CollapsibleSection>
 
       {/* ── SISTEMA FV ── */}

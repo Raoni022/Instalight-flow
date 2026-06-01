@@ -40,6 +40,14 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   if (!fd.modeloPainel?.trim())   w('SFV03', 'Modelo do painel não preenchido. Necessário para o memorial.');
   if (!fd.modeloInversor?.trim()) w('SFV04', 'Modelo do inversor não preenchido. Necessário para o memorial.');
 
+  const efInv = num(fd.eficienciaInv, 0);
+  if (efInv > 0 && (efInv < 90 || efInv > 99.5)) {
+    w('SFV04b',
+      `Eficiência do inversor declarada (${efInv}%) fora da faixa típica (90–99,5%). ` +
+      `Confirme o valor no datasheet do equipamento.`
+    );
+  }
+
   // ── Consistência strings × painéis ────────────────────────────
   const npCalc = num(fd.paineisSerie) * num(fd.stringParalelo);
   const npForm = num(fd.numeroPaineis);
@@ -78,6 +86,14 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     e('SFV08',
       `Disjuntor CC (${djCC} A) abaixo da corrente de dimensionamento (${calc.iDjCCMin} A). ` +
       `[NBR 16690 §7.3 — mínimo: 1,25 × Icc]`
+    );
+  }
+
+  if (calc.iscStr > 0 && djCC > 0 && djCC < calc.iscStr * 1.25) {
+    w('PRT01',
+      `Proteção CC (${djCC} A) pode estar subdimensionada para a corrente individual de string ` +
+      `(mínimo ${(calc.iscStr * 1.25).toFixed(1)} A = 1,25 × Isc_string ${calc.iscStr.toFixed(1)} A). ` +
+      `Verifique o fusível por string na String Box. [NBR 16690 §7.3]`
     );
   }
   if (djCA > 0 && djCA < calc.iDjCAMin) {
@@ -182,6 +198,15 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     e('AT01',
       `Resistência de aterramento medida (${resAt} Ω) acima do limite de 10 Ω. ` +
       `Verificar instalação das hastes, conexões e solo. [NBR 5419]`
+    );
+  }
+
+  // ── Potência injetada vs. disponibilizada ────────────────────
+  if (calc.potDispKW > 0 && calc.kWtCA > calc.potDispKW) {
+    e('PD01',
+      `Potência injetada pelo inversor (${calc.kWtCA} kW CA) supera a potência disponibilizada ` +
+      `no padrão de entrada (${calc.potDispKW} kW). ` +
+      `Reduza a potência CA ou solicite aumento de carga à distribuidora. [NT.00020.EQTL-06 §5.3]`
     );
   }
 
