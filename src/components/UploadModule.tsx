@@ -64,10 +64,13 @@ const TIPO_HINT: Record<TipoDoc, string> = {
 // Schemas focados por tipo — extraem só os campos relevantes de cada documento
 const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
   fatura: `{
-"nomeCliente":"","cpfCnpj":"","endereco":"","codigoUC":"","numeroFatura":"",
-"consumoMensalKwh":null,"numContaContrato":"","tipoPessoa":"",
+"nomeCliente":"","cpfCnpj":"","tipoPessoa":"",
+"rgCliente":"","orgaoExpeditorRG":"","telefoneCelular":"",
+"logradouro":"","numEndereco":"","complemento":"","bairro":"","cep":"","endereco":"",
+"codigoUC":"","numeroFatura":"","consumoMensalKwh":null,"numContaContrato":"",
 "numeroMedidor":"","classeUC":"","latitude":null,"longitude":null,
-"transformador":"","disjuntorEntrada":null,"ramalEntrada":"",
+"transformador":"","tipoPadrao":"","tipoFixacao":"","numPoste":"",
+"disjuntorEntrada":null,"ramalEntrada":"","materialCaboEntrada":"",
 "inscricaoEstadual":"","emailContato":"","telefoneContato":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
@@ -85,7 +88,7 @@ const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
   art: `{
-"nomeResponsavel":"","numeroCRT":"","numART":"","numProjeto":"","cidade":"",
+"nomeResponsavel":"","numeroCRT":"","numART":"","cidade":"",
 "nomeEmpresa":"","cnpjEmpresa":"","enderecoEmpresa":"","dataproject":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
@@ -103,7 +106,7 @@ const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
 "tensaoPartidaCC":null,"eficienciaInv":null,
 "dpsCCTipo":"","dpsCCTensao":null,"dpsCATipo":"","dpsCATensao":null,
 "disjuntorCC":null,"disjuntorCA":null,"tipoTelhado":"","tempMinima":null,"coordenadas":"",
-"nomeResponsavel":"","numeroCRT":"","numART":"","numProjeto":"","cidade":"",
+"nomeResponsavel":"","numeroCRT":"","numART":"","cidade":"",
 "nomeEmpresa":"","cnpjEmpresa":"","enderecoEmpresa":"",
 "inscricaoEstadual":"","rgRepresentante":"","emailContato":"","telefoneContato":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,

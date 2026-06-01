@@ -32,11 +32,21 @@ import { ResumoTab }     from './components/tabs/ResumoTab';
 export const INITIAL_FORM: FormData = {
   tipoPessoa: 'fisica',
   tipoInstalacao: 'Nova',
-  nomeCliente: '', cpfCnpj: '', endereco: '', codigoUC: '',
+  nomeCliente: '', cpfCnpj: '',
+  // PF específico
+  rgCliente: '', orgaoExpeditorRG: '', telefoneCelular: '',
+  // Endereço dividido
+  logradouro: '', numEndereco: '', complemento: '', bairro: '', cep: '',
+  endereco: '', codigoUC: '',
+  // Ocultos no sidebar mas mantidos para memorial/formulário
   numeroFatura: '', consumoMensalKwh: '', numContaContrato: '',
-  numeroMedidor: '', classeUC: 'Residencial', latitude: '', longitude: '',
-  transformador: '', disjuntorEntrada: '', ramalEntrada: '',
+  // Padrão de entrada
   tipoLigacao: 'Monofásico',
+  tipoPadrao: '', tipoFixacao: '', materialCaboEntrada: 'Cobre', numPoste: '',
+  disjuntorEntrada: '', ramalEntrada: '',
+  numeroMedidor: '', classeUC: 'Residencial', latitude: '', longitude: '',
+  transformador: '',
+  // Sistema FV
   numeroPaineis: '', modeloPainel: '', potenciaUnitariaWp: '',
   paineisSerie: '', stringParalelo: '',
   vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
@@ -50,6 +60,8 @@ export const INITIAL_FORM: FormData = {
   dpsCATipo: 'Tipo 2', dpsCATensao: '275',
   disjuntorCC: '', disjuntorCA: '', aterramento: '', modeloStringBox: '', resistenciaAterramento: '',
   tipoTelhado: 'Cerâmico', coordenadas: '', tempMinima: '',
+  // Responsável Técnico — numProjeto oculto no sidebar (usado apenas no carimbo da prancha)
+  tipoResponsabilidade: 'TRT',
   nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
@@ -187,6 +199,25 @@ export default function App() {
       setVerificandoSenha(false);
     }
   }, [senhaInput]);
+
+  // ── Auto-composição do endereço a partir dos campos divididos ──
+  useEffect(() => {
+    if (!formData.logradouro) return; // só auto-compõe quando campos divididos estão em uso
+    const partes = [
+      formData.logradouro,
+      formData.numEndereco,
+      formData.complemento,
+      formData.bairro ? `${formData.bairro}` : '',
+      `${formData.cidade || 'Porto Alegre'}/RS`,
+      formData.cep ? `CEP ${formData.cep}` : '',
+    ].filter(Boolean);
+    const composto = partes.join(', ');
+    if (composto !== formData.endereco) {
+      setFormData((prev) => ({ ...prev, endereco: composto }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.logradouro, formData.numEndereco, formData.complemento,
+      formData.bairro, formData.cidade, formData.cep]);
 
   // ── Auto-salvar silenciosamente quando um documento é gerado ──
   useEffect(() => {

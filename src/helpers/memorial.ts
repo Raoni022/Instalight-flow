@@ -43,7 +43,7 @@ export function buildMemorialTemplate(fd: FormData, calc: Calculos): string {
   return `MEMORIAL TÉCNICO-DESCRITIVO
 SISTEMA DE ${calc.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
 Elaborado conforme NT.00020.EQTL-06 (CEEE Equatorial) e ABNT NBR 16690
-Nº do Projeto (PE): ${fd.numProjeto || '[INSERIR]'} | ART/TRT: ${fd.numART || '[INSERIR]'} | Data: ${hoje}
+${fd.tipoResponsabilidade || 'TRT'}: ${fd.numART || '[INSERIR]'} | Data: ${hoje}
 
 ------------------------------------------------------------
 LISTA DE SIGLAS E ABREVIATURAS
@@ -533,7 +533,7 @@ RESPONSÁVEL TÉCNICO
 ------------------------------------------------------------
 Nome:       ${fd.nomeResponsavel || '_______________________________'}
 CRT/CREA:   ${fd.numeroCRT || '_______________________________'}
-ART/TRT:    ${fd.numART || '_______________________________'}
+${fd.tipoResponsabilidade || 'TRT'}:      ${fd.numART || '_______________________________'}
 Empresa:    ${fd.nomeEmpresa || 'Instalight Energia Solar'}
 Data:       ${hoje}
 

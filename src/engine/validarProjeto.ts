@@ -32,7 +32,7 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   // ── Responsável Técnico ───────────────────────────────────────
   if (!fd.nomeResponsavel?.trim()) e('RT01', 'Nome do Responsável Técnico não preenchido.');
   if (!fd.numeroCRT?.trim())       e('RT02', 'Nº CRT/CREA não preenchido.');
-  if (!fd.numART?.trim())          w('RT03', 'Nº da ART não preenchido. Obrigatório antes do protocolo CEEE.');
+  if (!fd.numART?.trim())          w('RT03', `Nº do ${fd.tipoResponsabilidade || 'TRT'} não preenchido. Obrigatório antes do protocolo CEEE.`);
 
   // ── Sistema FV — dados básicos ────────────────────────────────
   if (calc.kWp <= 0)   e('SFV01', 'Potência CC calculada é zero. Preencha Nº painéis e Potência Wp.');

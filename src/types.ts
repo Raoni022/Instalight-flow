@@ -11,26 +11,47 @@ export type ToastType   = 'success' | 'error' | 'warning' | 'info';
 export interface FormData {
   // CLIENTE
   tipoPessoa: TipoPessoa;
-  tipoInstalacao: 'Nova' | 'Ampliação'; // Para o formulário CEEE
+  tipoInstalacao: 'Nova' | 'Ampliação';
   nomeCliente: string;
   cpfCnpj: string;
+
+  // PF específico
+  rgCliente:        string;   // RG do titular (PF)
+  orgaoExpeditorRG: string;   // Órgão expedidor, ex: SSP/RS
+  telefoneCelular:  string;   // Celular do titular
+
+  // Endereço dividido (compõe fd.endereco automaticamente)
+  logradouro:  string;
+  numEndereco: string;
+  complemento: string;
+  bairro:      string;
+  cep:         string;
+
+  // Endereço legado (auto-composto ou preenchido manualmente)
   endereco: string;
+
   codigoUC: string;
-  numeroFatura: string;
+
+  // Mantidos mas ocultos no sidebar (usados no memorial/formulário)
+  numeroFatura:    string;
   consumoMensalKwh: string;
   numContaContrato: string;
 
-  // IDENTIFICAÇÃO DA UC / MEDIÇÃO
-  numeroMedidor:    string;  // Número de série do medidor
-  classeUC:         string;  // Residencial | Comercial | Industrial | Rural | Poder Público
-  latitude:         string;  // Coordenada GPS — latitude
-  longitude:        string;  // Coordenada GPS — longitude
-  transformador:    string;  // ID/número do transformador da distribuidora
-  disjuntorEntrada: string;  // Disjuntor geral do padrão de entrada (A) — padrão da UC
-  ramalEntrada:     string;  // Seção do cabo do ramal de entrada (ex: #25mm²)
+  // PADRÃO DE ENTRADA / MEDIÇÃO
+  tipoLigacao: TipoLigacao;  // Movido de SISTEMA FV — pertence ao padrão de entrada
+  tipoPadrao:          string;  // Tipo de caixa: Tipo E, Tipo H, Painel agrupado
+  tipoFixacao:         string;  // Muro | Poste de concreto | Fachada | Poste de madeira
+  materialCaboEntrada: string;  // Cobre | Alumínio
+  numPoste:            string;  // Número do poste da concessionária CEEE
+  disjuntorEntrada:    string;  // Disjuntor geral do padrão de entrada (A)
+  ramalEntrada:        string;  // Seção do cabo do ramal de entrada (ex: #25mm²)
+  numeroMedidor:       string;  // Número de série do medidor
+  classeUC:            string;  // Residencial | Comercial | Industrial | Rural | Poder Público
+  latitude:            string;  // Coordenada GPS — latitude
+  longitude:           string;  // Coordenada GPS — longitude
+  transformador:       string;  // ID/número do transformador da distribuidora
 
   // SISTEMA FV
-  tipoLigacao: TipoLigacao;
   numeroPaineis: string;
   modeloPainel: string;
   potenciaUnitariaWp: string;
@@ -85,10 +106,11 @@ export interface FormData {
   tempMinima: string; // Temperatura mínima local (°C) — para Voc_max real NBR 16690 §6.3
 
   // RESPONSÁVEL TÉCNICO
+  tipoResponsabilidade: 'ART' | 'TRT';  // ART para engenheiros, TRT para técnicos
   nomeResponsavel: string;
   numeroCRT: string;
-  numART: string;
-  numProjeto: string;
+  numART: string;     // número da ART ou TRT (campo unificado)
+  numProjeto: string; // mantido para o carimbo da prancha (campo PE) — oculto no sidebar
   cidade: string;
   dataproject: string;
 

@@ -108,7 +108,7 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
         {fd.nomeResponsavel || '—'}
       </text>
       <text x={W - 147} y={42} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
-        CRT: {fd.numeroCRT || '—'} | ART: {fd.numART || '—'}
+        CRT: {fd.numeroCRT || '—'} | {fd.tipoResponsabilidade || 'TRT'}: {fd.numART || '—'}
       </text>
       <line x1={W - 290} y1={48} x2={W - 5} y2={48} stroke="#334155" strokeWidth="1" />
       <text x={W - 240} y={58} fontSize="7" fill={gry} fontFamily="sans-serif">
@@ -347,7 +347,7 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
       <text x={810} y={CB_Y + 16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">RESPONSÁVEL TÉCNICO</text>
       <text x={810} y={CB_Y + 30} fontSize="9" fill={blk} fontFamily="sans-serif" fontWeight="700">{fd.nomeResponsavel || '—'}</text>
       <text x={810} y={CB_Y + 44} fontSize="8" fill={gry} fontFamily="sans-serif">CRT: {fd.numeroCRT || '—'}</text>
-      <text x={810} y={CB_Y + 58} fontSize="8" fill={gry} fontFamily="sans-serif">ART: {fd.numART || '—'}</text>
+      <text x={810} y={CB_Y + 58} fontSize="8" fill={gry} fontFamily="sans-serif">{fd.tipoResponsabilidade || 'TRT'}: {fd.numART || '—'}</text>
 
       {/* Col 4 — Projeto */}
       <text x={1210} y={CB_Y + 16} fontSize="8" fill={gry} fontFamily="sans-serif" fontWeight="700">IDENTIFICAÇÃO DO PROJETO</text>

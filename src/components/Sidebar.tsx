@@ -62,40 +62,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
           options={['fisica', 'juridica']} aiFields={aiFilledFields} />
         <FormField label="Tipo de Instalação" name="tipoInstalacao" value={fd.tipoInstalacao} onChange={onChange}
           options={['Nova', 'Ampliação']} aiFields={aiFilledFields} />
-        <FormField label="Nome / Razão Social" name="nomeCliente" value={fd.nomeCliente} onChange={onChange} aiFields={aiFilledFields} />
+
+        {/* Identificação */}
+        <FormField label="Nome / Razão Social" name="nomeCliente" value={fd.nomeCliente} onChange={onChange} aiFields={aiFilledFields}
+          placeholder={fd.tipoPessoa === 'fisica' ? 'Nome completo (sem abreviações)' : 'Razão Social completa'} />
         <FormField label={fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'} name="cpfCnpj" value={fd.cpfCnpj} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Endereço da UC" name="endereco" value={fd.endereco} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Código UC" name="codigoUC" value={fd.codigoUC} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Conta-Contrato UC" name="numContaContrato" value={fd.numContaContrato} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678" />
-        <FormField label="Nº Fatura" name="numeroFatura" value={fd.numeroFatura} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Consumo médio mensal (kWh)" name="consumoMensalKwh" value={fd.consumoMensalKwh} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 350" />
-        <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Medição e Entrada</div>
-        <FormField label="Nº do Medidor" name="numeroMedidor" value={fd.numeroMedidor} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 12345678" />
-        <FormField label="Classe da UC" name="classeUC" value={fd.classeUC} onChange={onChange}
-          options={['Residencial','Comercial','Industrial','Rural','Poder Público','Iluminação Pública']} aiFields={aiFilledFields} />
-        <FormField label="Transformador (ID)" name="transformador" value={fd.transformador} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: TR-4521" />
-        <FormField label="DJ Entrada (A)" name="disjuntorEntrada" value={fd.disjuntorEntrada} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 63" />
-        <FormField label="Ramal de Entrada" name="ramalEntrada" value={fd.ramalEntrada} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: #25mm²" />
-        <FormField label="Latitude" name="latitude" value={fd.latitude} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -30.0368" />
-        <FormField label="Longitude" name="longitude" value={fd.longitude} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: -51.2090" />
+
+        {/* PF: RG + órgão expedidor */}
+        {fd.tipoPessoa === 'fisica' && (
+          <>
+            <FormField label="RG" name="rgCliente" value={fd.rgCliente} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 1234567" />
+            <FormField label="Órgão Expedidor" name="orgaoExpeditorRG" value={fd.orgaoExpeditorRG} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: SSP/RS" />
+          </>
+        )}
+
+        {/* Endereço dividido */}
+        <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Endereço da Instalação</div>
+        <p className="text-xs text-slate-400 italic mb-1">Idêntico ao da conta de luz.</p>
+        <FormField label="Logradouro" name="logradouro" value={fd.logradouro} onChange={onChange} aiFields={aiFilledFields} placeholder="Rua, Avenida, etc." />
+        <FormField label="Número" name="numEndereco" value={fd.numEndereco} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: 123" />
+        <FormField label="Complemento" name="complemento" value={fd.complemento} onChange={onChange} aiFields={aiFilledFields} placeholder="Apto, Bloco, Sala..." />
+        <FormField label="Bairro" name="bairro" value={fd.bairro} onChange={onChange} aiFields={aiFilledFields} />
+        <FormField label="Cidade" name="cidade" value={fd.cidade} onChange={onChange} aiFields={aiFilledFields} />
+        <FormField label="CEP" name="cep" value={fd.cep} onChange={onChange} aiFields={aiFilledFields} placeholder="00000-000" />
+
+        {/* UC */}
+        <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Unidade Consumidora</div>
+        <FormField label="Código UC" name="codigoUC" value={fd.codigoUC} onChange={onChange} aiFields={aiFilledFields} placeholder="Código no topo da conta de luz" />
+
+        {/* Contato — para todos */}
+        <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Contato</div>
+        <FormField label="Celular" name="telefoneCelular" value={fd.telefoneCelular} onChange={onChange} aiFields={aiFilledFields} placeholder="(51) 9xxxx-xxxx" />
+        <FormField label="E-mail" name="emailContato" value={fd.emailContato} onChange={onChange} aiFields={aiFilledFields} placeholder="email@exemplo.com" />
+
+        {/* PJ: representante legal + IE */}
         {fd.tipoPessoa === 'juridica' && (
           <>
             <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Representante Legal</div>
             <FormField label="Nome do Representante" name="nomeRepresentante" value={fd.nomeRepresentante} onChange={onChange} aiFields={aiFilledFields} />
-            <FormField label="CPF do Representante" name="cpfRepresentante" value={fd.cpfRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="000.000.000-00" />
-            <FormField label="RG do Representante" name="rgRepresentante" value={fd.rgRepresentante} onChange={onChange} aiFields={aiFilledFields} />
+            <FormField label="CPF" name="cpfRepresentante" value={fd.cpfRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="000.000.000-00" />
+            <FormField label="RG" name="rgRepresentante" value={fd.rgRepresentante} onChange={onChange} aiFields={aiFilledFields} />
             <FormField label="Cargo / Função" name="cargoRepresentante" value={fd.cargoRepresentante} onChange={onChange} aiFields={aiFilledFields} placeholder="Ex: Sócio-Administrador" />
             <FormField label="Inscrição Estadual" name="inscricaoEstadual" value={fd.inscricaoEstadual} onChange={onChange} aiFields={aiFilledFields} placeholder="Isento ou número" />
-            <FormField label="E-mail de Contato" name="emailContato" value={fd.emailContato} onChange={onChange} aiFields={aiFilledFields} placeholder="contato@empresa.com" />
-            <FormField label="Telefone de Contato" name="telefoneContato" value={fd.telefoneContato} onChange={onChange} aiFields={aiFilledFields} placeholder="(51) 9xxxx-xxxx" />
+            <FormField label="Telefone de Contato" name="telefoneContato" value={fd.telefoneContato} onChange={onChange} aiFields={aiFilledFields} placeholder="(51) xxxx-xxxx" />
           </>
         )}
       </CollapsibleSection>
 
-      {/* ── SISTEMA FV ── */}
-      <CollapsibleSection title="Sistema Fotovoltaico" icon="☀️" defaultOpen>
+      {/* ── PADRÃO DE ENTRADA ── */}
+      <CollapsibleSection title="Padrão de Entrada" icon="🔌" defaultOpen>
         <FormField label="Tipo de Ligação" name="tipoLigacao" value={fd.tipoLigacao} onChange={onChange}
           options={['Monofásico', 'Bifásico', 'Trifásico']} aiFields={aiFilledFields} />
+        <FormField label="Tipo de Padrão / Caixa" name="tipoPadrao" value={fd.tipoPadrao} onChange={onChange} aiFields={aiFilledFields}
+          placeholder="Ex: Caixa Tipo E, Tipo H, Painel agrupado" />
+        <FormField label="Tipo de Fixação" name="tipoFixacao" value={fd.tipoFixacao} onChange={onChange}
+          options={['Muro', 'Poste de concreto', 'Fachada', 'Poste de madeira']} aiFields={aiFilledFields} />
+        <FormField label="DJ Entrada (A)" name="disjuntorEntrada" value={fd.disjuntorEntrada} onChange={onChange} type="number" aiFields={aiFilledFields}
+          placeholder="Ex: 50, 63, 100" />
+        <FormField label="Material do Cabo" name="materialCaboEntrada" value={fd.materialCaboEntrada} onChange={onChange}
+          options={['Cobre', 'Alumínio']} aiFields={aiFilledFields} />
+        <FormField label="Ramal de Entrada (mm²)" name="ramalEntrada" value={fd.ramalEntrada} onChange={onChange} aiFields={aiFilledFields}
+          placeholder="Ex: #25mm²" />
+        <FormField label="Nº do Poste CEEE" name="numPoste" value={fd.numPoste} onChange={onChange} aiFields={aiFilledFields}
+          placeholder="Número do poste de derivação" />
+        <FormField label="Transformador (ID)" name="transformador" value={fd.transformador} onChange={onChange} aiFields={aiFilledFields}
+          placeholder="Ex: TR-4521" />
+        <FormField label="Nº do Medidor" name="numeroMedidor" value={fd.numeroMedidor} onChange={onChange} aiFields={aiFilledFields}
+          placeholder="Ex: 12345678" />
+        <FormField label="Classe da UC" name="classeUC" value={fd.classeUC} onChange={onChange}
+          options={['Residencial','Comercial','Industrial','Rural','Poder Público','Iluminação Pública']} aiFields={aiFilledFields} />
+        <FormField label="Latitude" name="latitude" value={fd.latitude} onChange={onChange} aiFields={aiFilledFields} placeholder="-30.0368" />
+        <FormField label="Longitude" name="longitude" value={fd.longitude} onChange={onChange} aiFields={aiFilledFields} placeholder="-51.2090" />
+      </CollapsibleSection>
+
+      {/* ── SISTEMA FV ── */}
+      <CollapsibleSection title="Sistema Fotovoltaico" icon="☀️" defaultOpen>
         <FormField label="Nº de Painéis (total)" name="numeroPaineis" value={fd.numeroPaineis} onChange={onChange} type="number" aiFields={aiFilledFields} />
         <FormField label="Modelo do Painel" name="modeloPainel" value={fd.modeloPainel} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Potência Unit. (Wp)" name="potenciaUnitariaWp" value={fd.potenciaUnitariaWp} onChange={onChange} type="number" aiFields={aiFilledFields} />
@@ -225,10 +266,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* ── RESPONSÁVEL TÉCNICO ── */}
       <CollapsibleSection title="Responsável Técnico" icon="👷">
+        <FormField label="Tipo de Responsabilidade" name="tipoResponsabilidade" value={fd.tipoResponsabilidade}
+          onChange={onChange} options={['TRT', 'ART']} aiFields={aiFilledFields} />
         <FormField label="Nome do RT" name="nomeResponsavel" value={fd.nomeResponsavel} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Nº CRT/CREA" name="numeroCRT" value={fd.numeroCRT} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Nº ART" name="numART" value={fd.numART} onChange={onChange} aiFields={aiFilledFields} />
-        <FormField label="Nº Projeto (PE)" name="numProjeto" value={fd.numProjeto} onChange={onChange} aiFields={aiFilledFields} />
+        <FormField
+          label={`Nº ${fd.tipoResponsabilidade || 'TRT'}`}
+          name="numART"
+          value={fd.numART}
+          onChange={onChange}
+          aiFields={aiFilledFields}
+          placeholder={`Número do ${fd.tipoResponsabilidade || 'TRT'}`}
+        />
         <FormField label="Cidade" name="cidade" value={fd.cidade} onChange={onChange} aiFields={aiFilledFields} />
         <FormField label="Data do Projeto" name="dataproject" value={fd.dataproject} onChange={onChange} aiFields={aiFilledFields} />
       </CollapsibleSection>
