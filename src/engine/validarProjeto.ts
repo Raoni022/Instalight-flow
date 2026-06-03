@@ -17,6 +17,16 @@ const num = (v: string | undefined, fallback = 0): number => {
   return isNaN(n) ? fallback : n;
 };
 
+/**
+ * Tabela de ampacidade — condutor de cobre, instalação em eletroduto, ambiente 30 °C.
+ * Valores conservadores baseados na ABNT NBR 5410 Tabela 37 (método B1/B2).
+ * Para cabos solares CC (IEC 62930, 90 °C, dupla isolação), a capacidade real é cerca
+ * de 30–40 % maior — esta tabela é segura para ambos os casos (lado conservador).
+ */
+const AMPACIDADE_COBRE: Record<number, number> = {
+  1.5: 16, 2.5: 20, 4: 27, 6: 34, 10: 46, 16: 62, 25: 80, 35: 100, 50: 125,
+};
+
 export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const e = (cod: string, msg: string) => issues.push({ nivel: 'erro',  cod, msg });
@@ -34,11 +44,26 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
   if (!fd.numeroCRT?.trim())       e('RT02', 'Nº CRT/CREA não preenchido.');
   if (!fd.numART?.trim())          w('RT03', `Nº do ${fd.tipoResponsabilidade || 'TRT'} não preenchido. Obrigatório antes do protocolo CEEE.`);
 
+  // ── Empresa instaladora ───────────────────────────────────────
+  if (!fd.nomeEmpresa?.trim())  w('EMP01', 'Nome da empresa instaladora não preenchido. Obrigatório para carimbo e formulário CEEE.');
+  if (!fd.cnpjEmpresa?.trim())  w('EMP02', 'CNPJ da empresa instaladora não preenchido.');
+
   // ── Sistema FV — dados básicos ────────────────────────────────
   if (calc.kWp <= 0)   e('SFV01', 'Potência CC calculada é zero. Preencha Nº painéis e Potência Wp.');
   if (calc.kWtCA <= 0) e('SFV02', 'Potência CA do inversor é zero. Preencha Potência CA (kW).');
   if (!fd.modeloPainel?.trim())   w('SFV03', 'Modelo do painel não preenchido. Necessário para o memorial.');
   if (!fd.modeloInversor?.trim()) w('SFV04', 'Modelo do inversor não preenchido. Necessário para o memorial.');
+
+  // ── SFV03b — aviso de estimativa de Voc (sem datasheet real) ──
+  if (!fd.vocUnitario?.trim() && calc.vocStr > 0) {
+    const ns = num(fd.paineisSerie, 1);
+    const vocEstimado = ns > 0 ? parseFloat((calc.vocStr / ns).toFixed(1)) : 0;
+    w('SFV03b',
+      `Voc unitário não informado — usando estimativa de ${vocEstimado} V/módulo (por faixa de potência). ` +
+      `Para módulos ≥ 400 Wp, o Voc real é tipicamente 45–52 V. ` +
+      `Preencha o campo "Voc unitário" do datasheet para cálculo preciso. [NBR 16690 §5.4]`
+    );
+  }
 
   const efInv = num(fd.eficienciaInv, 0);
   if (efInv > 0 && (efInv < 90 || efInv > 99.5)) {
@@ -68,6 +93,16 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
         `Voc_max calculado (${vocMaxEfetivo} V${calc.vocMaxCorr !== null ? ' — coef. real' : ' — fator 1,25'}) ` +
         `supera a tensão máxima CC do inversor (${vInCC} V). ` +
         `Risco de dano permanente ao inversor. Reduza painéis em série. [NBR 16690 §6.3]`
+      );
+    } else if (calc.vocMaxCorr !== null && calc.vocMax > vInCC && calc.vocMaxCorr <= vInCC) {
+      // Voc_max pelo fator 1,25 ultrapassaria o limite, mas o método preciso indica OK.
+      // O projeto é VÁLIDO (método preciso é preferencial per NBR 16690 §6.3),
+      // mas é necessário avisar que há dependência crítica nos dados de temperatura.
+      w('SFV06b',
+        `Voc_max pelo fator 1,25 (${calc.vocMax} V) superaria o limite CC do inversor (${vInCC} V), ` +
+        `mas o método por coeficiente real (${calc.vocMaxCorr} V) indica compatibilidade. ` +
+        `Confirme no datasheet: γ = ${fd.coefTempVoc} %/°C e T_mín = ${fd.tempMinima} °C. ` +
+        `Qualquer imprecisão nesses valores pode comprometer a segurança do sistema. [NBR 16690 §6.3]`
       );
     }
     if (vocMaxEfetivo < vInCC * 0.5) {
@@ -103,6 +138,41 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     );
   }
 
+  // ── Ampacidade dos cabos (NBR 5410 Tabela 37) ────────────────
+  const secCC = num(fd.secaoCaboCC);
+  const capCC = AMPACIDADE_COBRE[secCC] ?? 0;
+  if (capCC > 0 && calc.iccNorma > capCC) {
+    e('CAB03',
+      `Bitola do cabo CC (${secCC} mm²) insuficiente: corrente de dimensionamento ` +
+      `(${calc.iccNorma} A) supera a capacidade nominal (${capCC} A para cobre em eletroduto 30 °C). ` +
+      `Aumente a seção do condutor. [NBR 5410 Tabela 37 — valores conservadores]`
+    );
+  }
+  const secCA = num(fd.secaoCaboCA);
+  const capCA = AMPACIDADE_COBRE[secCA] ?? 0;
+  if (capCA > 0 && calc.iDimCA > capCA) {
+    e('CAB04',
+      `Bitola do cabo CA (${secCA} mm²) insuficiente: corrente de dimensionamento ` +
+      `(${calc.iDimCA} A) supera a capacidade nominal (${capCA} A para cobre em eletroduto 30 °C). ` +
+      `Aumente a seção do condutor. [NBR 5410 Tabela 37]`
+    );
+  }
+
+  // ── Ramal de entrada vs disjuntor geral ───────────────────────
+  const djEntradaNum = num(fd.disjuntorEntrada, 0);
+  const ramalStr = fd.ramalEntrada?.replace(/[^\d.]/g, '');
+  const ramalMM2 = ramalStr ? parseFloat(ramalStr) : 0;
+  if (djEntradaNum > 0 && ramalMM2 > 0) {
+    const capRamal = AMPACIDADE_COBRE[ramalMM2] ?? 0;
+    if (capRamal > 0 && djEntradaNum > capRamal) {
+      w('RAM01',
+        `Ramal de entrada (#${ramalMM2} mm²) pode estar subdimensionado para o disjuntor geral ` +
+        `(${djEntradaNum} A). Capacidade nominal conservadora: ${capRamal} A. ` +
+        `Verifique com o padrão CEEE e a bitola real do ramal. [NBR 5410]`
+      );
+    }
+  }
+
   // ── Queda de tensão ───────────────────────────────────────────
   // Usa dvccOpP (Impp/Vmpp) quando disponível — grandeza normativa NBR 16690.
   // Fallback para dvccP (Icc×1,25/Voc) — método conservador de dimensionamento.
@@ -125,10 +195,14 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
 
   // ── DPS CC — tensão de operação ───────────────────────────────
   const dpsCCTensao = num(fd.dpsCCTensao, 0);
-  if (dpsCCTensao > 0 && calc.vocMax > 0 && dpsCCTensao < calc.vocMax) {
+  // Usa vocMaxEfetivo (método preciso quando disponível), consistente com SFV06.
+  // Isso evita falso positivo quando vocMax_1,25 > DPS mas vocMaxCorr < DPS (correto).
+  const vocMaxEfetivoDPS = calc.vocMaxCorr ?? calc.vocMax;
+  if (dpsCCTensao > 0 && vocMaxEfetivoDPS > 0 && dpsCCTensao < vocMaxEfetivoDPS) {
     w('DPS01',
-      `Tensão nominal do DPS CC (${dpsCCTensao} V) < Voc_max (${calc.vocMax} V). ` +
-      `O DPS pode não proteger adequadamente. Selecione DPS com Un > Voc_max.`
+      `Tensão nominal do DPS CC (${dpsCCTensao} V) < Voc_max efetivo ` +
+      `(${vocMaxEfetivoDPS} V${calc.vocMaxCorr !== null ? ' — coef. real' : ' — fator 1,25'}). ` +
+      `O DPS pode não proteger adequadamente. Selecione DPS com Uc > Voc_max.`
     );
   }
 
@@ -212,12 +286,54 @@ export function validarProjeto(fd: FormData, calc: Calculos): ValidationIssue[] 
     );
   }
 
-  // ── Ampliação — informativo de potência total ─────────────────
-  if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
-    i('AMP01',
-      `Ampliação: ${calc.kWpExistente} kWp existentes + ${calc.kWp} kWp novos = ` +
-      `${calc.kWpTotal} kWp total. Enquadramento pelo total: ${calc.enqTotal}.`
-    );
+  // ── Ampliação — validações específicas ───────────────────────
+  if (fd.tipoInstalacao === 'Ampliação') {
+    // AMP01 — informativo: potências consolidadas
+    if (calc.kWpExistente > 0) {
+      i('AMP01',
+        `Ampliação: ${calc.kWpExistente} kWp existentes + ${calc.kWp} kWp novos = ` +
+        `${calc.kWpTotal} kWp total. ` +
+        `CA: ${calc.kWtCAExistente} kW + ${calc.kWtCA} kW = ${calc.kWtCATotal} kW total. ` +
+        `Enquadramento pelo total: ${calc.enqTotal}.`
+      );
+    }
+
+    // AMP02 — sistema existente não preenchido
+    if (calc.kWpExistente <= 0) {
+      w('AMP02',
+        'Dados do sistema existente não preenchidos (Nº módulos + potência Wp). ' +
+        'O memorial e o diagrama ficarão incompletos para protocolo de ampliação.'
+      );
+    }
+
+    // AMP03 — parecer de acesso anterior
+    if (!fd.parecerAcessoAnterior?.trim()) {
+      w('AMP03',
+        'Protocolo/Parecer de acesso anterior não informado. ' +
+        'Recomendado para instruir o processo de ampliação na CEEE.'
+      );
+    }
+
+    // AMP04 — ART/TRT anterior
+    if (!fd.artTrtAnterior?.trim()) {
+      w('AMP04',
+        'ART/TRT da instalação anterior não informada. ' +
+        'Recomendado para comprovação da homologação anterior.'
+      );
+    }
+
+    // AMP05 — padrão marcado como "Mantido" mas potência excede o disponibilizado
+    if (
+      fd.situacaoPadrao === 'Mantido' &&
+      calc.potDispKW > 0 &&
+      calc.kWtCATotal > calc.potDispKW
+    ) {
+      w('AMP05',
+        `Padrão de entrada marcado como "Mantido", mas potência CA total após ampliação ` +
+        `(${calc.kWtCATotal} kW) supera a potência disponibilizada (${calc.potDispKW} kW). ` +
+        `Considerar revisão do padrão ou aumento de carga. [NT.00020.EQTL-06 §5.3]`
+      );
+    }
   }
 
   // ── Informações gerais ────────────────────────────────────────

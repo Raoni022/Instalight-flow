@@ -56,17 +56,26 @@ const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como, link }) =>
 );
 
 export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, setToast }) => {
+  const isAmpl   = fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0;
+  const potCC    = isAmpl ? `${calc.kWpTotal} kWp (total)` : `${calc.kWp} kWp`;
+  const potCA    = isAmpl ? `${calc.kWtCATotal} kW (total)` : `${calc.kWtCA} kW`;
+  const enquadra = isAmpl ? calc.enqTotal : calc.enq;
+  const gerLabel = isAmpl ? 'Geração anual (total)' : 'Geração anual est.';
+  const geracao  = calc.geracaoAnualTotal;
+  const ecoLabel = isAmpl ? 'Economia anual (total)' : 'Economia anual est.';
+  const economia = calc.economiaAnualTotal;
+
   const cards = [
-    { label: 'Potência CC',        value: `${calc.kWp} kWp`,                                    icon: '☀️', color: 'orange'  },
-    { label: 'Potência CA total',  value: `${calc.kWtCA} kW`,                                   icon: '⚡', color: 'blue'    },
-    { label: 'Enquadramento',      value: calc.enq,                                              icon: '📋', color: 'green'   },
-    { label: 'Geração anual est.', value: `${calc.geracaoAnual.toLocaleString('pt-BR')} kWh`,   icon: '📊', color: 'purple'  },
-    { label: 'Prazo análise CEEE', value: calc.prazo,                                            icon: '⏱️', color: 'slate'   },
-    { label: 'Economia anual est.',value: `R$ ${calc.economiaAnual.toLocaleString('pt-BR')}`,   icon: '💰', color: 'emerald' },
-    { label: 'CO₂ evitado/ano',    value: `${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg`, icon: '🌿', color: 'teal'    },
-    { label: 'Árvores equiv./ano', value: `${calc.arvoresEquivalente} árvores`,                  icon: '🌳', color: 'lime'    },
-    { label: 'DJ Geral Entrada',   value: fd.disjuntorEntrada ? `${fd.disjuntorEntrada} A` : '—', icon: '🔌', color: 'slate'  },
-    { label: 'Ramal de Entrada',   value: fd.ramalEntrada || '—',                                icon: '⚡', color: 'blue'   },
+    { label: 'Potência CC',        value: potCC,                                                   icon: '☀️', color: 'orange'  },
+    { label: 'Potência CA total',  value: potCA,                                                   icon: '⚡', color: 'blue'    },
+    { label: 'Enquadramento',      value: enquadra,                                                icon: '📋', color: 'green'   },
+    { label: gerLabel,             value: `${geracao.toLocaleString('pt-BR')} kWh`,               icon: '📊', color: 'purple'  },
+    { label: 'Prazo análise CEEE', value: calc.prazo,                                              icon: '⏱️', color: 'slate'   },
+    { label: ecoLabel,             value: `R$ ${economia.toLocaleString('pt-BR')}`,               icon: '💰', color: 'emerald' },
+    { label: 'CO₂ evitado/ano',    value: `${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg`,   icon: '🌿', color: 'teal'    },
+    { label: 'Árvores equiv./ano', value: `${calc.arvoresEquivalente} árvores`,                    icon: '🌳', color: 'lime'    },
+    { label: 'DJ Geral Entrada',   value: fd.disjuntorEntrada ? `${fd.disjuntorEntrada} A` : '—', icon: '🔌', color: 'slate'   },
+    { label: 'Ramal de Entrada',   value: fd.ramalEntrada || '—',                                  icon: '⚡', color: 'blue'    },
   ];
 
   const groupA = [
@@ -88,6 +97,9 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
     { id: 'B4', doc: 'Memorial Técnico-Descritivo',    gerado: docsGerados.memorial,      como: 'Gere na aba "Memorial" e valide com o RT' },
     { id: 'B5', doc: 'TRT/ART (Responsabilidade Técnica)', gerado: false,                 como: 'RT deve assinar a ART no sistema do CREA/CFT' },
     { id: 'B6', doc: 'Data Sheets dos equipamentos',   gerado: false,                     como: 'Baixar do site do fabricante e incluir no dossiê' },
+    { id: 'B7', doc: 'Protocolo CEEE Equatorial (portal online)', gerado: false,
+      como: 'Após reunir todos os documentos, protocolar pelo portal SolicitaNet da CEEE Equatorial',
+      link: 'https://solicitanet.ceee.com.br/' },
   ];
 
   const exportPendencias = () => {

@@ -1,12 +1,17 @@
 import React from 'react';
 
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
 interface FormFieldProps {
   label: string;
   name: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   type?: string;
-  options?: string[];
+  options?: (string | SelectOption)[];
   readonly?: boolean;
   aiFields?: Set<string>;
   placeholder?: string;
@@ -36,11 +41,11 @@ export const FormField: React.FC<FormFieldProps> = ({
       </label>
       {options ? (
         <select name={name} value={value} onChange={onChange} className={cls}>
-          {options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {options.map((o) => {
+            const val = typeof o === 'string' ? o : o.value;
+            const lbl = typeof o === 'string' ? o : o.label;
+            return <option key={val} value={val}>{lbl}</option>;
+          })}
         </select>
       ) : (
         <input

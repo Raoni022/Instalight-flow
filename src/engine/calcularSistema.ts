@@ -38,10 +38,17 @@ export function calcularSistema(fd: FormData): Calculos {
   // ══════════════════════════════════════════════════════════════
   const ns  = num(fd.paineisSerie);
   /**
-   * Voc por painel: usa valor real do datasheet se informado;
-   * caso contrário, usa a constante VOC_PP (estimativa conservadora).
+   * VOC_PP dinâmico por faixa de potência nominal do módulo.
+   * Módulos modernos ≥ 500 Wp têm Voc real típico de 45–52 V (M10/G12 half-cell).
+   * Usar estimativa conservadora atualizada quando o datasheet não está disponível.
+   * ⚠ Sempre prefira preencher o Voc real do datasheet para precisão normativa.
    */
-  const vocPP  = num(fd.vocUnitario) > 0 ? num(fd.vocUnitario) : VOC_PP;
+  const VOC_PP_DIN = wp >= 500 ? 47 : wp >= 350 ? 44 : VOC_PP;
+  /**
+   * Voc por painel: usa valor real do datasheet se informado;
+   * caso contrário, usa a estimativa dinâmica por faixa de potência.
+   */
+  const vocPP  = num(fd.vocUnitario) > 0 ? num(fd.vocUnitario) : VOC_PP_DIN;
   const vocStr = ns * vocPP;
   /** Voc_max com fator de temperatura 1,25 — NBR 16690 §6.3 (método simplificado / fallback) */
   const vocMax = parseFloat((vocStr * 1.25).toFixed(2));
@@ -155,9 +162,21 @@ export function calcularSistema(fd: FormData): Calculos {
   const iDjCAMin = iNomCA;
 
   // ══════════════════════════════════════════════════════════════
+  // IRRADIAÇÃO E PR EFETIVOS (local ou padrão Porto Alegre)
+  // ══════════════════════════════════════════════════════════════
+  /**
+   * irradEfetivo: usa o valor local informado (fd.irradLocal) quando disponível,
+   * caso contrário usa a constante IRRAD (Porto Alegre / RS, CRESESB).
+   * prEfetivo: usa o PR personalizado (fd.prCustom) ou o PR padrão do sistema.
+   */
+  const irradEfetivo = num(fd.irradLocal) > 0 ? num(fd.irradLocal) : IRRAD;
+  const prEfetivo    = num(fd.prCustom)   > 0 ? num(fd.prCustom)   : PR;
+
+  // ══════════════════════════════════════════════════════════════
   // GERAÇÃO E ECONOMIA
   // ══════════════════════════════════════════════════════════════
-  const geracaoAnual  = Math.round(kWp * IRRAD * PR * 365);
+  /** Geração do SISTEMA NOVO (kWp novo apenas) — usado nas seções técnicas do memorial. */
+  const geracaoAnual  = Math.round(kWp * irradEfetivo * prEfetivo * 365);
   const economiaAnual = Math.round(geracaoAnual * TARIFA);
 
   // ══════════════════════════════════════════════════════════════
@@ -178,7 +197,13 @@ export function calcularSistema(fd: FormData): Calculos {
   // ══════════════════════════════════════════════════════════════
   const numFases = fd.tipoLigacao === 'Trifásico' ? Math.sqrt(3) :
                    fd.tipoLigacao === 'Bifásico'  ? 2 : 1;
-  const potDispKVA = parseFloat(((tensaoCA * num(fd.disjuntorCA, 50) * numFases) / 1000).toFixed(2));
+  /**
+   * NT.00020.EQTL-06 §5.3: PD = VN × IDG × NF / 1000
+   * IDG = Intensidade do Disjuntor Geral do PADRÃO DE ENTRADA (fd.disjuntorEntrada),
+   *       NÃO o disjuntor de proteção do inversor (fd.disjuntorCA).
+   * Fallback 50 A quando disjuntorEntrada não informado.
+   */
+  const potDispKVA = parseFloat(((tensaoCA * num(fd.disjuntorEntrada, 50) * numFases) / 1000).toFixed(2));
   const potDispKW  = parseFloat((potDispKVA * 0.92).toFixed(2)); // FP = 0,92
 
   // ══════════════════════════════════════════════════════════════
@@ -203,6 +228,31 @@ export function calcularSistema(fd: FormData): Calculos {
     ? 'Microgeração Distribuída'
     : 'Minigeração Distribuída';
 
+  /** Enquadramento somente do sistema novo (independente do existente). */
+  const enqNovo = kWp <= 75 ? 'Microgeração Distribuída' : 'Minigeração Distribuída';
+
+  /**
+   * Geração TOTAL após ampliação (novo + existente).
+   * Para nova instalação: igual a geracaoAnual (kWpTotal = kWp).
+   * Para ampliação: reflete a capacidade real instalada total.
+   */
+  const kWpParaGeracao    = isAmpl ? kWpTotal : kWp;
+  const geracaoAnualTotal = Math.round(kWpParaGeracao * irradEfetivo * prEfetivo * 365);
+  const economiaAnualTotal= Math.round(geracaoAnualTotal * TARIFA);
+
+  /**
+   * Percentual de aumento de potência CC em relação ao existente.
+   * Ex: existente = 3,6 kWp, novo = 4,4 kWp → percentualAumentokWp = 122,2%
+   * (o novo representa 122% do existente, i.e. um acréscimo de 22%)
+   */
+  const percentualAumentokWp: number | null = (isAmpl && kWpExistente > 0)
+    ? parseFloat(((kWp / kWpExistente) * 100).toFixed(1))
+    : null;
+
+  const percentualAumentokWtCA: number | null = (isAmpl && kWtCAExistente > 0)
+    ? parseFloat(((kWtCA / kWtCAExistente) * 100).toFixed(1))
+    : null;
+
   return {
     kWp, kWtCA,
     vocStr, vocMax,
@@ -219,5 +269,7 @@ export function calcularSistema(fd: FormData): Calculos {
     vmppString, imppTotal, dvccOpV, dvccOpP,
     vocMaxCorr,
     kWpExistente, kWtCAExistente, kWpTotal, kWtCATotal, enqTotal,
+    enqNovo, percentualAumentokWp, percentualAumentokWtCA,
+    irradEfetivo, prEfetivo, geracaoAnualTotal, economiaAnualTotal,
   };
 }

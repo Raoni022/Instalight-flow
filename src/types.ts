@@ -137,6 +137,18 @@ export interface FormData {
   modeloInversorExistente:    string;
   potenciaCAExistentekW:      string;
   quantidadeInversoresExistente: string;
+
+  // GERAÇÃO / DESEMPENHO — valores locais (opcional, sobrepõe constantes padrão)
+  irradLocal: string;  // HSP local (kWh/m²/dia); vazio = usa IRRAD padrão (Porto Alegre 4,8)
+  prCustom:   string;  // Performance Ratio personalizado; vazio = usa PR padrão (0,75)
+
+  // AMPLIAÇÃO — metadados do projeto homologado anterior
+  parecerAcessoAnterior:  string;  // Protocolo/Nº parecer de acesso anterior
+  dataAprovacaoAnterior:  string;  // Data da aprovação anterior
+  artTrtAnterior:         string;  // Nº ART ou TRT da instalação anterior
+  observacoesExistente:   string;  // Observações livres sobre o sistema existente
+  situacaoPadrao:         'Mantido' | 'Alterado / aumento de carga' | 'A definir pelo RT';
+  tipoAmpliacao:          'Mesmo inversor existente' | 'Novo inversor adicional' | 'Substituição de inversor' | 'A definir pelo RT';
 }
 
 // ── Resultados de cálculo (motor JS — IA nunca calcula) ──────────────────
@@ -210,8 +222,34 @@ export interface Calculos {
   kWpTotal: number;
   /** Potência CA total = nova + existente */
   kWtCATotal: number;
-  /** Enquadramento regulatório pelo kWpTotal */
+  /** Enquadramento regulatório pelo kWpTotal (sistema consolidado após ampliação) */
   enqTotal: string;
+  /** Enquadramento regulatório somente do sistema novo (sem o existente) */
+  enqNovo: string;
+
+  /** HSP efetivo utilizado no cálculo (irradLocal se informado, senão IRRAD padrão) */
+  irradEfetivo: number;
+  /** PR efetivo utilizado no cálculo (prCustom se informado, senão PR padrão) */
+  prEfetivo: number;
+
+  /**
+   * Geração anual do sistema TOTAL (kWh/ano).
+   * Para nova instalação: igual a geracaoAnual.
+   * Para ampliação: inclui o sistema existente + o novo.
+   */
+  geracaoAnualTotal: number;
+  /** Economia anual estimada baseada no sistema total (R$/ano). */
+  economiaAnualTotal: number;
+  /**
+   * Percentual de aumento da potência CC em relação ao sistema existente.
+   * null quando não é ampliação ou kWpExistente = 0.
+   */
+  percentualAumentokWp: number | null;
+  /**
+   * Percentual de aumento da potência CA em relação ao sistema existente.
+   * null quando não é ampliação ou kWtCAExistente = 0.
+   */
+  percentualAumentokWtCA: number | null;
 
   /** Vmpp da string completa (V) — 0 se vmppUnitario não informado */
   vmppString: number;

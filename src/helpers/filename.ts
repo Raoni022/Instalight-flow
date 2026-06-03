@@ -11,7 +11,8 @@ import { FormData } from '../types';
  * @param ext  - Extensão do arquivo (pdf | svg), padrão pdf
  */
 export function makeFilename(tipo: string, fd: FormData, ext: 'pdf' | 'svg' | 'zip' = 'pdf'): string {
-  const uc   = (fd.codigoUC ?? '').replace(/[^\w]/g, '').slice(0, 20) || 'uc';
-  const data = new Date().toISOString().slice(0, 10);
-  return `instalight_${tipo}_${uc}_${data}.${ext}`;
+  const uc     = (fd.codigoUC ?? '').replace(/[^\w]/g, '').slice(0, 20) || 'uc';
+  const data   = new Date().toISOString().slice(0, 10);
+  const prefix = fd.tipoInstalacao === 'Ampliação' ? 'amp_' : '';
+  return `instalight_${prefix}${tipo}_${uc}_${data}.${ext}`;
 }

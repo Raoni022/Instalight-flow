@@ -144,10 +144,30 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   linha('CRT/CREA', fd.numeroCRT);
 
   y += 6;
+  y += 4;
+  doc.setFillColor(255, 243, 205);
+  doc.rect(14, y - 5, W - 28, 22, 'F');
+  doc.setDrawColor(180, 130, 0);
+  doc.rect(14, y - 5, W - 28, 22);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(120, 80, 0);
+  doc.text('⚠ ATENÇÃO — DOCUMENTO INTERNO DE APOIO', 16, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(
+    'Este pré-formulário é gerado pelo Instalight Flow para conferência interna dos dados.',
+    16, y + 6,
+  );
+  doc.text(
+    'O protocolo oficial deve ser realizado pelo PORTAL ELETRÔNICO da CEEE Equatorial (SolicitaNet).',
+    16, y + 12,
+  );
+  doc.setTextColor(30, 30, 30);
+  y += 26;
   doc.setFontSize(7);
   doc.setTextColor(120, 120, 120);
-  doc.text(
-    '⚠ Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',
+  doc.text('Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',
     14, y,
   );
   doc.setTextColor(30, 30, 30);
@@ -238,6 +258,74 @@ function _buildPendenciasPDF(
   groupA.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
   sect('GRUPO B — DOCUMENTOS TÉCNICOS');
   groupB.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
+
+  // Grupo C — somente para projetos de Ampliação
+  if (fd.tipoInstalacao === 'Ampliação') {
+    const groupC = [
+      {
+        id: 'C1',
+        doc: 'Projeto anterior aprovado / homologado',
+        gerado: false,
+        como: fd.parecerAcessoAnterior
+          ? `Protocolo/Parecer informado: ${fd.parecerAcessoAnterior}`
+          : 'Localizar o projeto aprovado na homologação anterior junto à CEEE',
+      },
+      {
+        id: 'C2',
+        doc: 'Parecer de acesso anterior (CEEE)',
+        gerado: !!fd.parecerAcessoAnterior,
+        como: fd.parecerAcessoAnterior
+          ? `Nº ${fd.parecerAcessoAnterior} — verificar validade e escopo`
+          : 'Solicitar cópia do parecer de acesso original à CEEE ou ao instalador anterior',
+      },
+      {
+        id: 'C3',
+        doc: 'ART/TRT da instalação anterior',
+        gerado: !!fd.artTrtAnterior,
+        como: fd.artTrtAnterior
+          ? `ART/TRT informada: ${fd.artTrtAnterior}`
+          : 'Solicitar ao RT anterior ou ao cliente a ART/TRT original',
+      },
+      {
+        id: 'C4',
+        doc: 'Fotos do padrão de entrada atual',
+        gerado: false,
+        como: 'Fotografar caixa de medição, disjuntor geral, ramal e número do poste',
+      },
+      {
+        id: 'C5',
+        doc: 'Fatura atual da UC',
+        gerado: false,
+        como: 'Confirmar que UC já está com medidor bidirecional instalado pela CEEE',
+      },
+      {
+        id: 'C6',
+        doc: 'Datasheet dos equipamentos existentes',
+        gerado: false,
+        como: `Módulos: ${fd.modeloPainelExistente || '—'} | Inversor: ${fd.modeloInversorExistente || '—'}`,
+      },
+      {
+        id: 'C7',
+        doc: 'Datasheet dos equipamentos novos',
+        gerado: false,
+        como: `Módulos: ${fd.modeloPainel || '—'} | Inversor: ${fd.modeloInversor || '—'}`,
+      },
+      {
+        id: 'C8',
+        doc: 'ART/TRT específica da ampliação',
+        gerado: !!fd.numART,
+        como: fd.numART ? `ART/TRT informada: ${fd.numART}` : 'RT deve registrar nova ART/TRT para a ampliação',
+      },
+      {
+        id: 'C9',
+        doc: 'Confirmação do padrão de entrada',
+        gerado: fd.situacaoPadrao !== 'A definir pelo RT',
+        como: `Situação declarada: ${fd.situacaoPadrao} — confirmar compatibilidade com a nova potência total`,
+      },
+    ];
+    sect('GRUPO C — DOCUMENTOS ESPECÍFICOS DE AMPLIAÇÃO');
+    groupC.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
+  }
 
   y += 4;
   doc.setFontSize(8);

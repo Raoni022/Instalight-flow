@@ -70,6 +70,13 @@ export const INITIAL_FORM: FormData = {
   numeroPaineisExistentes: '', modeloPainelExistente: '', potenciaWpExistente: '',
   noctExistente: '', certificacaoExistente: '',
   modeloInversorExistente: '', potenciaCAExistentekW: '', quantidadeInversoresExistente: '',
+  // Ampliação — metadados do projeto anterior
+  parecerAcessoAnterior: '', dataAprovacaoAnterior: '', artTrtAnterior: '',
+  observacoesExistente: '',
+  situacaoPadrao: 'A definir pelo RT',
+  tipoAmpliacao: 'A definir pelo RT',
+  // Geração / desempenho local
+  irradLocal: '', prCustom: '',
 };
 
 const INITIAL_DOCS: DocsGerados = {

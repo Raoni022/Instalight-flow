@@ -39,13 +39,64 @@ export function buildMemorialTemplate(fd: FormData, calc: Calculos): string {
   const VoutCA = fd.tensaoSaidaCA || '220';
   const djCC = fd.disjuntorCC || String(calc.iDjCCMin || '[INSERIR]');
   const djCA = fd.disjuntorCA || String(calc.iDjCAMin || '[INSERIR]');
+  /** IDG = Disjuntor Geral do Padrão de Entrada (NT.00020.EQTL-06 §5.3) */
+  const idg = fd.disjuntorEntrada || '[INSERIR — DJ GERAL DO PADRÃO DE ENTRADA]';
+
+  // ── Seção de Caracterização da Ampliação (quando aplicável) ──────────────
+  const secaoAmpliacao = fd.tipoInstalacao === 'Ampliação' ? `
+------------------------------------------------------------
+0. CARACTERIZAÇÃO DA AMPLIAÇÃO — SISTEMA EXISTENTE + NOVO
+------------------------------------------------------------
+Este memorial refere-se a projeto de AMPLIAÇÃO de sistema fotovoltaico conectado à rede
+(microgeração/minigeração distribuída) existente e previamente homologado junto à CEEE Equatorial.
+
+A análise técnica e o parecer de acesso da distribuidora devem considerar a usina fotovoltaica
+de forma CONSOLIDADA, ou seja, o sistema existente + a nova ampliação como uma única unidade
+geradora instalada na Unidade Consumidora ${fd.codigoUC || '[INSERIR UC]'}.
+
+O Responsável Técnico deverá anexar ou verificar o projeto/homologação anterior antes do
+protocolo da presente ampliação.
+
+Dados da aprovação anterior:
+  Protocolo/Parecer anterior: ${fd.parecerAcessoAnterior || '[INFORMAR]'}
+  Data de aprovação anterior: ${fd.dataAprovacaoAnterior || '[INFORMAR]'}
+  ART/TRT anterior:           ${fd.artTrtAnterior || '[INFORMAR]'}
+
+Escopo desta ampliação:
+  Tipo de ampliação (inversor): ${fd.tipoAmpliacao}
+  Situação do padrão de entrada: ${fd.situacaoPadrao}
+${fd.observacoesExistente ? `  Observações: ${fd.observacoesExistente}` : ''}
+
+Balanço de potências — Sistema Consolidado:
+
+| Item                | Sistema Existente     | Ampliação Proposta    | Total após Ampliação  |
+|---------------------|-----------------------|-----------------------|-----------------------|
+| Potência CC (kWp)   | ${String(calc.kWpExistente).padEnd(21)} | ${String(calc.kWp).padEnd(21)} | ${String(calc.kWpTotal).padEnd(21)} |
+| Potência CA (kW)    | ${String(calc.kWtCAExistente).padEnd(21)} | ${String(calc.kWtCA).padEnd(21)} | ${String(calc.kWtCATotal).padEnd(21)} |
+| Nº módulos          | ${String(fd.numeroPaineisExistentes || '—').padEnd(21)} | ${String(fd.numeroPaineis || '—').padEnd(21)} | ${String((num(fd.numeroPaineisExistentes) + num(fd.numeroPaineis)) || '—').padEnd(21)} |
+| Nº inversores       | ${String(fd.quantidadeInversoresExistente || '1').padEnd(21)} | ${String(fd.quantidadeInversores || '1').padEnd(21)} | ${String((num(fd.quantidadeInversoresExistente, 1) + num(fd.quantidadeInversores, 1))).padEnd(21)} |
+| Enquadramento       | ${String(calc.enqNovo.replace(' Distribuída','')).padEnd(21)} | ${String(calc.enqNovo.replace(' Distribuída','')).padEnd(21)} | ${String(calc.enqTotal).padEnd(21)} |
+
+${calc.percentualAumentokWp !== null
+  ? `Acréscimo de potência CC: ${calc.percentualAumentokWp}% do sistema existente (+${calc.kWp} kWp)`
+  : ''}
+${calc.percentualAumentokWtCA !== null
+  ? `Acréscimo de potência CA: ${calc.percentualAumentokWtCA}% do sistema existente (+${calc.kWtCA} kW)`
+  : ''}
+
+Equipamentos existentes (antes da ampliação):
+  Módulos FV:  ${fd.numeroPaineisExistentes || '—'} módulos ${fd.modeloPainelExistente || '—'} — ${fd.potenciaWpExistente || '—'} Wp/unidade
+  Inversor:    ${fd.modeloInversorExistente || '—'} — ${fd.potenciaCAExistentekW || '—'} kW CA × ${fd.quantidadeInversoresExistente || '1'} unidade(s)
+  Potência CC existente: ${calc.kWpExistente} kWp | Potência CA existente: ${calc.kWtCAExistente} kW
+
+` : '';
 
   return `MEMORIAL TÉCNICO-DESCRITIVO
-SISTEMA DE ${calc.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
+SISTEMA DE ${fd.tipoInstalacao === 'Ampliação' ? 'AMPLIAÇÃO DE ' : ''}${calc.enq.toUpperCase()} FOTOVOLTAICA — ON GRID
 Elaborado conforme NT.00020.EQTL-06 (CEEE Equatorial) e ABNT NBR 16690
-${fd.tipoResponsabilidade || 'TRT'}: ${fd.numART || '[INSERIR]'} | Data: ${hoje}
+${fd.tipoResponsabilidade || 'TRT'}: ${fd.numART || '[INSERIR]'} | Data: ${hoje}${secaoAmpliacao ? `\nTipo de projeto: AMPLIAÇÃO DE GERAÇÃO DISTRIBUÍDA` : ''}
 
-------------------------------------------------------------
+${secaoAmpliacao}------------------------------------------------------------
 LISTA DE SIGLAS E ABREVIATURAS
 ------------------------------------------------------------
 ABNT  Associação Brasileira de Normas Técnicas
@@ -159,10 +210,17 @@ Enquadramento:      ${calc.enqTotal}
 
 4.3 Potência Disponibilizada — Fórmula (NT.00020.EQTL-06 Seção 5.3)
   PD [kVA] = (VN × IDG × NF) / 1000
-  PD [kVA] = (220 × ${djCA} × ${nf}) / 1000 = ${calc.potDispKVA} kVA
+  onde IDG = Intensidade do Disjuntor Geral do Padrão de Entrada = ${idg} A
+  PD [kVA] = (220 × ${idg} × ${nf}) / 1000 = ${calc.potDispKVA} kVA
   PD [kW]  = PD [kVA] × FP = ${calc.potDispKVA} × 0,92 = ${calc.potDispKW} kW
 
-A potência de injeção do gerador (${calc.kWtCA} kW CA) ${calc.kWtCA <= calc.potDispKW ? 'é inferior ou igual à' : 'supera a'} potência disponibilizada (${calc.potDispKW} kW), ${calc.kWtCA <= calc.potDispKW ? 'atendendo' : 'não atendendo'} ao requisito normativo.
+  Nota: O IDG é o disjuntor geral do padrão de entrada da UC, não o CB de proteção do
+  gerador FV (${djCA} A). São equipamentos distintos na instalação elétrica.
+
+${fd.tipoInstalacao === 'Ampliação'
+  ? `A potência CA total injetada após ampliação (${calc.kWtCATotal} kW) ${calc.kWtCATotal <= calc.potDispKW ? 'é inferior ou igual à' : 'supera a'} potência disponibilizada (${calc.potDispKW} kW), ${calc.kWtCATotal <= calc.potDispKW ? 'atendendo' : 'NÃO atendendo'} ao requisito normativo para o sistema consolidado.`
+  : `A potência de injeção do gerador (${calc.kWtCA} kW CA) ${calc.kWtCA <= calc.potDispKW ? 'é inferior ou igual à' : 'supera a'} potência disponibilizada (${calc.potDispKW} kW), ${calc.kWtCA <= calc.potDispKW ? 'atendendo' : 'não atendendo'} ao requisito normativo.`
+}
 
 ------------------------------------------------------------
 5. DIMENSIONAMENTO DO GERADOR FOTOVOLTAICO
@@ -355,15 +413,20 @@ ${calc.dvcaP <= 4 ? '✔ Queda de tensão CA dentro do limite de 4% (ABNT NBR 54
 10.1 Geração Estimada
 
 Fórmula: E(ano) = Pp × HSP × PR × 365
-  Pp  = ${calc.kWp} kWp (potência de pico instalada)
-  HSP = ${IRRAD} kWh/m²/dia (Horas de Sol Pleno — Porto Alegre/RS, CRESESB)
-  PR  = ${PR} (Performance Ratio — fator de perdas globais do sistema)
+  Pp  = ${calc.kWp} kWp (potência de pico do SISTEMA NOVO)
+  HSP = ${calc.irradEfetivo} kWh/m²/dia${calc.irradEfetivo === IRRAD ? ' (Porto Alegre/RS — CRESESB)' : ' (valor local personalizado)'}
+  PR  = ${calc.prEfetivo}${calc.prEfetivo === PR ? ' (Performance Ratio padrão)' : ' (PR personalizado)'}
 
-  E(ano) = ${calc.kWp} × ${IRRAD} × ${PR} × 365 = ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
-  E(mês) ≈ ${Math.round(calc.geracaoAnual / 12).toLocaleString('pt-BR')} kWh/mês
-
+  E_novo(ano) = ${calc.kWp} × ${calc.irradEfetivo} × ${calc.prEfetivo} × 365 = ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
+  E_novo(mês) ≈ ${Math.round(calc.geracaoAnual / 12).toLocaleString('pt-BR')} kWh/mês
+${fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0 ? `
+  Sistema total após ampliação (${calc.kWpTotal} kWp):
+  E_total(ano) = ${calc.kWpTotal} × ${calc.irradEfetivo} × ${calc.prEfetivo} × 365 = ${calc.geracaoAnualTotal.toLocaleString('pt-BR')} kWh/ano
+  E_total(mês) ≈ ${Math.round(calc.geracaoAnualTotal / 12).toLocaleString('pt-BR')} kWh/mês
+` : ''}
 ${calc.percentualAtendimento ? `Atendimento estimado ao consumo da UC: ${calc.percentualAtendimento}% (consumo médio declarado: ${fd.consumoMensalKwh} kWh/mês)` : ''}
-Economia financeira estimada: R$ ${calc.economiaAnual.toLocaleString('pt-BR')}/ano (tarifa média R$ ${TARIFA}/kWh)
+Economia financeira estimada: R$ ${calc.economiaAnualTotal.toLocaleString('pt-BR')}/ano (tarifa média R$ ${TARIFA}/kWh)
+${fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0 ? `  (sistema total: novo + existente)` : ''}
 
 10.2 Impacto Ambiental
 [[[IA_NARRATIVA_SEC10]]]

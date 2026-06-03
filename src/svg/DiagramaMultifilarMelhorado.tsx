@@ -211,6 +211,32 @@ export const DiagramaMultifilarMelhorado: React.FC<Props> = ({ fd }) => {
       <text x={MTX} y={caY0 + caTH + 18} fontSize="6" fill={grn} textAnchor="middle" fontFamily="sans-serif">
         Bidirecional CEEE
       </text>
+
+      {/* ── Observação técnica para projetos de AMPLIAÇÃO ── */}
+      {fd.tipoInstalacao === 'Ampliação' && (
+        <g>
+          {(() => {
+            const noteY = Math.max(caY0 + caTH + 34, ccY0 + nStr * strSp + 44);
+            return (
+              <>
+                <rect x={0} y={noteY} width={1020} height={38} rx="3"
+                  fill="#eff6ff" stroke="#bfdbfe" strokeWidth="1" />
+                <text x={8} y={noteY + 12} fontSize="6.5" fill="#1d4ed8" fontWeight="700" fontFamily="sans-serif">
+                  PROJETO DE AMPLIAÇÃO
+                </text>
+                <text x={8} y={noteY + 22} fontSize="6" fill="#1e40af" fontFamily="sans-serif">
+                  Este diagrama representa o sistema NOVO a ser instalado. O sistema existente/homologado
+                  ({fd.numeroPaineisExistentes || '—'} módulos {fd.potenciaWpExistente || '—'}Wp,
+                </text>
+                <text x={8} y={noteY + 31} fontSize="6" fill="#1e40af" fontFamily="sans-serif">
+                  {' '}inv. {fd.modeloInversorExistente || '—'} — {fd.potenciaCAExistentekW || '—'} kW CA) deve ser conferido em campo pelo RT.
+                  {' '}Potência total após ampliação: {(parseFloat(fd.potenciaCAExistentekW||'0') * parseFloat(fd.quantidadeInversoresExistente||'1') + parseFloat(fd.potenciaCAkW||'0') * parseFloat(fd.quantidadeInversores||'1')).toFixed(3)} kW CA.
+                </text>
+              </>
+            );
+          })()}
+        </g>
+      )}
     </g>
   );
 };

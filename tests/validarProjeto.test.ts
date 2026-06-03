@@ -9,19 +9,24 @@ const BASE: FormData = {
   tipoInstalacao: 'Nova',
   nomeCliente: 'João Silva',
   cpfCnpj: '123.456.789-00',
+  rgCliente: '', orgaoExpeditorRG: '', telefoneCelular: '',
+  logradouro: '', numEndereco: '', complemento: '', bairro: '', cep: '',
   endereco: 'Rua Teste, 1 — Porto Alegre/RS',
   codigoUC: '1234567890',
   numeroFatura: '9876',
   consumoMensalKwh: '400',
   numContaContrato: '111222333',
   tipoLigacao: 'Monofásico',
+  tipoPadrao: '', tipoFixacao: '', materialCaboEntrada: 'Cobre',
+  numPoste: '', disjuntorEntrada: '', ramalEntrada: '',
+  numeroMedidor: '', classeUC: 'Residencial', latitude: '', longitude: '', transformador: '',
   numeroPaineis: '10',
   modeloPainel: 'Canadian Solar CS6R-550',
   potenciaUnitariaWp: '550',
   paineisSerie: '5',
   stringParalelo: '2',
   vocUnitario: '', iscUnitario: '', vmppUnitario: '', imppUnitario: '',
-  eficienciaPainel: '', coefTempVoc: '', tempMinima: '',
+  eficienciaPainel: '', coefTempVoc: '', noct: '', certificacaoPainel: '',
   modeloInversor: 'Growatt MIN 5000TL-X',
   potenciaCAkW: '5',
   tensaoEntradaCC: '600',
@@ -42,6 +47,7 @@ const BASE: FormData = {
   aterramento: '5/8" x 2400mm', modeloStringBox: '', resistenciaAterramento: '',
   tipoTelhado: 'Cerâmico',
   coordenadas: '', tempMinima: '',
+  tipoResponsabilidade: 'TRT',
   nomeResponsavel: 'Eng. Carlos Souza',
   numeroCRT: '12345-D/RS',
   numART: 'ART-2024-001',
@@ -51,6 +57,14 @@ const BASE: FormData = {
   nomeEmpresa: 'Instalight Energia Solar',
   cnpjEmpresa: '12.345.678/0001-90',
   enderecoEmpresa: 'Rua da Luz, 100 — Porto Alegre/RS',
+  nomeRepresentante: '', cpfRepresentante: '', rgRepresentante: '', cargoRepresentante: '',
+  inscricaoEstadual: '', emailContato: '', telefoneContato: '',
+  numeroPaineisExistentes: '', modeloPainelExistente: '', potenciaWpExistente: '',
+  noctExistente: '', certificacaoExistente: '',
+  modeloInversorExistente: '', potenciaCAExistentekW: '', quantidadeInversoresExistente: '',
+  parecerAcessoAnterior: '', dataAprovacaoAnterior: '', artTrtAnterior: '',
+  observacoesExistente: '', situacaoPadrao: 'A definir pelo RT', tipoAmpliacao: 'A definir pelo RT',
+  irradLocal: '', prCustom: '',
 };
 
 const hasCode  = (issues: ReturnType<typeof validarProjeto>, cod: string) =>
@@ -308,5 +322,254 @@ describe('validarProjeto — AT01 (aterramento medido)', () => {
 
   it('AT01: sem erro quando campo vazio', () => {
     expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'AT01')).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// TESTES DE AMPLIAÇÃO
+// ══════════════════════════════════════════════════════════════
+
+// Fixture base para ampliação (3,6 kWp existente + 4,4 kWp novo)
+const BASE_AMPL: FormData = {
+  ...BASE,
+  tipoInstalacao: 'Ampliação',
+  numeroPaineis: '8', potenciaUnitariaWp: '550',
+  paineisSerie: '4', stringParalelo: '2',
+  potenciaCAkW: '4', quantidadeInversores: '1',
+  disjuntorCA: '40',  // comporta kWtCATotal = 7kW → iNomCA(total) ≈ 15.9A
+  numeroPaineisExistentes: '8', potenciaWpExistente: '450',
+  potenciaCAExistentekW: '3', quantidadeInversoresExistente: '1',
+  parecerAcessoAnterior: 'PA-2022-00456',
+  artTrtAnterior: 'TRT-2022-789',
+};
+
+describe('validarProjeto — Ampliação: Teste 3 — potência total supera padrão', () => {
+  // APÓS CORREÇÃO DO BUG #1: potDispKW usa disjuntorEntrada (não disjuntorCA).
+  // disjuntorEntrada = 25A, monofásico → potDispKW = (220×25×1)/1000×0,92 = 5,06 kW
+  // kWtCATotal = 3 + 4 = 7 kW → 7 > 5,06 → erro PD01
+  const fd = {
+    ...BASE_AMPL,
+    disjuntorEntrada: '25',  // DJ GERAL do padrão → potDispKW = 5,06 kW < 7 kW total
+    disjuntorCA: '40',       // CB do inversor (não afeta PD)
+  };
+
+  it('PD01: erro crítico quando kWtCATotal supera potência disponibilizada', () => {
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    expect(hasCode(issues, 'PD01')).toBe(true);
+    expect(issues.find(x => x.cod === 'PD01')?.nivel).toBe('erro');
+  });
+
+  it('PD01 menciona potência existente no texto (ampliação)', () => {
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    const pd1 = issues.find(x => x.cod === 'PD01');
+    // A mensagem deve mencionar a composição existente + novo
+    expect(pd1?.msg).toContain('existente');
+  });
+});
+
+describe('validarProjeto — Ampliação: Teste 4 — dados de projeto anterior ausentes', () => {
+  const fd = {
+    ...BASE_AMPL,
+    parecerAcessoAnterior: '',  // AMP03
+    artTrtAnterior: '',         // AMP04
+  };
+
+  it('AMP03: aviso (não erro) quando parecer anterior vazio', () => {
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    const amp3 = issues.find(x => x.cod === 'AMP03');
+    expect(amp3).toBeDefined();
+    expect(amp3?.nivel).toBe('aviso');
+  });
+
+  it('AMP04: aviso (não erro) quando ART/TRT anterior vazia', () => {
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    const amp4 = issues.find(x => x.cod === 'AMP04');
+    expect(amp4).toBeDefined();
+    expect(amp4?.nivel).toBe('aviso');
+  });
+
+  it('sem erros críticos apenas por falta de documentos anteriores', () => {
+    const calc = calcularSistema({ ...fd, disjuntorCA: '40' }); // padrão ok
+    const erros = validarProjeto({ ...fd, disjuntorCA: '40' }, calc).filter(x => x.nivel === 'erro');
+    expect(erros).toHaveLength(0);
+  });
+});
+
+describe('validarProjeto — Ampliação: AMP02 (existente não preenchido)', () => {
+  it('AMP02: aviso quando numeroPaineisExistentes e potenciaWpExistente vazios', () => {
+    const fd = {
+      ...BASE,
+      tipoInstalacao: 'Ampliação' as const,
+      numeroPaineisExistentes: '',
+      potenciaWpExistente: '',
+    };
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    expect(hasCode(issues, 'AMP02')).toBe(true);
+    expect(issues.find(x => x.cod === 'AMP02')?.nivel).toBe('aviso');
+  });
+
+  it('AMP02 ausente quando existente preenchido', () => {
+    const calc = calcularSistema(BASE_AMPL);
+    expect(hasCode(validarProjeto(BASE_AMPL, calc), 'AMP02')).toBe(false);
+  });
+});
+
+describe('validarProjeto — Ampliação: AMP05 (padrão mantido x potência incompatível)', () => {
+  // APÓS BUG #1 CORRIGIDO: usar disjuntorEntrada (não disjuntorCA) para controlar potDispKW
+  // disjuntorEntrada = 25A monofásico → potDispKW = 5,06 kW < kWtCATotal 7 kW → incompatível
+  it('AMP05: aviso quando padrão="Mantido" e potência total > disponibilizada', () => {
+    const fd = {
+      ...BASE_AMPL,
+      situacaoPadrao: 'Mantido' as const,
+      disjuntorEntrada: '25',  // DJ GERAL pequeno → PD insuficiente
+      disjuntorCA: '40',       // CB inversor (não afeta PD)
+    };
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    expect(hasCode(issues, 'AMP05')).toBe(true);
+    expect(issues.find(x => x.cod === 'AMP05')?.nivel).toBe('aviso');
+  });
+
+  it('AMP05 ausente quando padrão="Alterado / aumento de carga"', () => {
+    const fd = {
+      ...BASE_AMPL,
+      situacaoPadrao: 'Alterado / aumento de carga' as const,
+      disjuntorEntrada: '25',
+      disjuntorCA: '40',
+    };
+    const calc = calcularSistema(fd);
+    expect(hasCode(validarProjeto(fd, calc), 'AMP05')).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// TESTES DAS MELHORIAS (validação técnica 03/06/2026)
+// ══════════════════════════════════════════════════════════════
+
+describe('validarProjeto — Bug #2 CORRIGIDO: DPS01 usa vocMaxEfetivo (não vocMax_1,25)', () => {
+  it('DPS01: sem aviso quando DPS ≥ vocMaxCorr mas < vocMax_1,25 (não é mais falso positivo)', () => {
+    // vocStr = 4 × 50V = 200V, vocMax = 250V, vocMaxCorr = 200×1,07 = 214V
+    // DPS = 220V: 220 > vocMaxCorr(214) → sem aviso (correto)
+    // Antes do fix: 220 < vocMax(250) → DPS01 disparava (falso positivo)
+    const fd = {
+      ...BASE,
+      paineisSerie: '4', numeroPaineis: '4', stringParalelo: '1',
+      vocUnitario: '50', coefTempVoc: '-0.28', tempMinima: '0',
+      dpsCCTensao: '220',
+    };
+    const calc = calcularSistema(fd);
+    expect(calc.vocMaxCorr).toBeCloseTo(214, 0);   // 200 × 1.07 = 214V
+    expect(calc.vocMax).toBeCloseTo(250, 0);         // 200 × 1.25 = 250V
+    // 220 < 214? NO → sem DPS01
+    expect(hasCode(validarProjeto(fd, calc), 'DPS01')).toBe(false);
+  });
+
+  it('DPS01: aviso quando DPS < vocMaxCorr (verdadeiro positivo)', () => {
+    // vocStr = 4 × 50 = 200V, vocMaxCorr = 214V, DPS = 210V < 214V → aviso
+    const fd = {
+      ...BASE,
+      paineisSerie: '4', numeroPaineis: '4', stringParalelo: '1',
+      vocUnitario: '50', coefTempVoc: '-0.28', tempMinima: '0',
+      dpsCCTensao: '210',
+    };
+    const calc = calcularSistema(fd);
+    expect(hasCode(validarProjeto(fd, calc), 'DPS01')).toBe(true);
+  });
+});
+
+describe('validarProjeto — SFV03b (aviso de estimativa Voc)', () => {
+  it('SFV03b: aviso quando vocUnitario vazio e há painéis', () => {
+    const fd = { ...BASE, vocUnitario: '' };
+    const calc = calcularSistema(fd);
+    expect(hasCode(validarProjeto(fd, calc), 'SFV03b')).toBe(true);
+    expect(validarProjeto(fd, calc).find(x => x.cod === 'SFV03b')?.nivel).toBe('aviso');
+  });
+
+  it('SFV03b: sem aviso quando vocUnitario preenchido', () => {
+    const fd = { ...BASE, vocUnitario: '49.5' };
+    const calc = calcularSistema(fd);
+    expect(hasCode(validarProjeto(fd, calc), 'SFV03b')).toBe(false);
+  });
+});
+
+describe('validarProjeto — SFV06b (vocMax_1,25 falha mas vocMaxCorr passa)', () => {
+  it('SFV06b: aviso quando 1.25 falha mas coef. real passa (Cenário 1 original)', () => {
+    // vocStr = 5 × 49.5 = 247.5V, vocMax_1.25 = 309.4V > 600V, vocMaxCorr = 264.8V < 600V
+    // → SFV06 NÃO dispara (coef. real passa), mas SFV06b AVISA
+    const fd = {
+      ...BASE,
+      vocUnitario: '49.5', paineisSerie: '5',
+      tensaoEntradaCC: '295',   // 264.8 < 295 (corr passa), 309.4 > 295 (1.25 falha)
+      coefTempVoc: '-0.28', tempMinima: '0',
+    };
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    // SFV06 não deve disparar (coef. passa)
+    expect(hasCode(issues, 'SFV06')).toBe(false);
+    // SFV06b deve disparar (aviso de dependência no coeficiente)
+    expect(hasCode(issues, 'SFV06b')).toBe(true);
+    expect(issues.find(x => x.cod === 'SFV06b')?.nivel).toBe('aviso');
+  });
+
+  it('SFV06b: sem aviso quando ambos os métodos passam', () => {
+    // vocStr = 5 × 41.5 = 207.5V, ambos < 600V → sem aviso
+    const fd = { ...BASE, vocUnitario: '41.5', tensaoEntradaCC: '600',
+                 coefTempVoc: '-0.28', tempMinima: '0' };
+    const calc = calcularSistema(fd);
+    expect(hasCode(validarProjeto(fd, calc), 'SFV06b')).toBe(false);
+  });
+});
+
+describe('validarProjeto — CAB03/CAB04 (ampacidade dos cabos)', () => {
+  it('CAB03: erro quando bitola CC insuficiente para a corrente', () => {
+    // 4 strings × isc ≈ 11.70A × 1.25 = iccNorma ≈ 58.5A > cap 2.5mm² (20A)
+    const fd = { ...BASE, secaoCaboCC: '2.5', stringParalelo: '4' };
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    expect(hasCode(issues, 'CAB03')).toBe(true);
+    expect(issues.find(x => x.cod === 'CAB03')?.nivel).toBe('erro');
+  });
+
+  it('CAB04: erro quando bitola CA insuficiente para a corrente', () => {
+    // 25kW mono: iDimCA = (25000/220) × 1.25 = 142A >> cap 6mm² (34A)
+    const fd = { ...BASE, potenciaCAkW: '25', secaoCaboCA: '6' };
+    const calc = calcularSistema(fd);
+    const issues = validarProjeto(fd, calc);
+    expect(hasCode(issues, 'CAB04')).toBe(true);
+    expect(issues.find(x => x.cod === 'CAB04')?.nivel).toBe('erro');
+  });
+
+  it('CAB03: sem erro quando bitola CC adequada (BASE: 6mm², 2 strings)', () => {
+    // iccNorma ≈ 29.25A < cap 6mm² (34A) → ok
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'CAB03')).toBe(false);
+  });
+
+  it('CAB04: sem erro quando bitola CA adequada (BASE: 6mm², 5kW mono)', () => {
+    // iDimCA ≈ 28.4A < cap 6mm² (34A) → ok
+    expect(hasCode(validarProjeto(BASE, calcularSistema(BASE)), 'CAB04')).toBe(false);
+  });
+});
+
+describe('validarProjeto — EMP01/EMP02 (empresa instaladora)', () => {
+  it('EMP01: aviso quando nomeEmpresa vazio', () => {
+    const issues = validarProjeto({ ...BASE, nomeEmpresa: '' }, calcularSistema(BASE));
+    expect(hasCode(issues, 'EMP01')).toBe(true);
+    expect(issues.find(x => x.cod === 'EMP01')?.nivel).toBe('aviso');
+  });
+
+  it('EMP02: aviso quando cnpjEmpresa vazio', () => {
+    const issues = validarProjeto({ ...BASE, cnpjEmpresa: '' }, calcularSistema(BASE));
+    expect(hasCode(issues, 'EMP02')).toBe(true);
+  });
+
+  it('EMP01/EMP02: sem aviso quando empresa preenchida', () => {
+    const issues = validarProjeto(BASE, calcularSistema(BASE));
+    expect(hasCode(issues, 'EMP01')).toBe(false);
+    expect(hasCode(issues, 'EMP02')).toBe(false);
   });
 });
