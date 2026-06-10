@@ -10,9 +10,10 @@
 import React from 'react';
 import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
-import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
+import { makePDF } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
 import { buildMemorialTemplate, aplicarTextosBasicos } from '../../helpers/memorial';
+import { buildMemorialPDFPro } from '../../helpers/memorialPDF';
 
 interface MemorialTabProps {
   fd: FormData;
@@ -113,24 +114,7 @@ ${template}`;
 
   const exportPDF = () => {
     const doc = makePDF('p', 'a4');
-    const W = doc.internal.pageSize.getWidth();
-    pdfHeader(doc, fd);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('MEMORIAL TÉCNICO-DESCRITIVO', W / 2, 35, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text(`${calc.enq} | ${calc.kWp} kWp | ${fd.tipoLigacao} | Conforme NT.00020.EQTL-06`, W / 2, 42, { align: 'center' });
-    doc.setTextColor(30, 30, 30);
-    if (memorialIA) {
-      addTextBlock(doc, memorialIA, 12, 12, 50, 5);
-    } else {
-      doc.setTextColor(150, 150, 150);
-      doc.text('Gere o memorial primeiro.', 14, 55);
-    }
-    pdfRTWarning(doc);
-    pdfFooter(doc, fd, 1, 1);
+    buildMemorialPDFPro(doc, fd, calc, memorialIA || '');
     doc.save(makeFilename('memorial', fd));
   };
 

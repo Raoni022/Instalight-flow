@@ -13,6 +13,7 @@
 import type { FormData, Calculos, DocsGerados } from '../types';
 import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from './pdf';
 import { makeFilename } from './filename';
+import { buildMemorialPDFPro } from './memorialPDF';
 
 // ── Helpers internos de build ──────────────────────────────────────────────
 
@@ -372,27 +373,19 @@ function _buildMemorialPDF(
   memorialIA: string,
 ) {
   const doc = makePDF('p', 'a4');
-  const W = doc.internal.pageSize.getWidth();
-  pdfHeader(doc, fd);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text('MEMORIAL TÉCNICO-DESCRITIVO', W / 2, 35, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text(
-    `${calc.enq} | ${calc.kWp} kWp | ${fd.tipoLigacao} | Conforme NT.00020.EQTL-06`,
-    W / 2, 42, { align: 'center' },
-  );
-  doc.setTextColor(30, 30, 30);
   if (memorialIA) {
-    addTextBlock(doc, memorialIA, 12, 12, 50, 5);
+    buildMemorialPDFPro(doc, fd, calc, memorialIA);
   } else {
+    // Fallback: placeholder page
+    const W = doc.internal.pageSize.getWidth();
+    pdfHeader(doc, fd);
+    doc.setFontSize(10);
     doc.setTextColor(150, 150, 150);
-    doc.text('Memorial não gerado — acesse a aba Memorial para gerá-lo.', 14, 55);
+    doc.text('Memorial não gerado — acesse a aba Memorial para gerá-lo.', W / 2, 60, { align: 'center' });
+    doc.setTextColor(30, 30, 30);
+    pdfRTWarning(doc);
+    pdfFooter(doc, fd, 1, 1);
   }
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
   return { doc, filename: makeFilename('memorial', fd) };
 }
 
