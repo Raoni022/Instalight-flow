@@ -309,6 +309,8 @@ export interface DocsGerados {
   memorial: boolean;
   procuracao: boolean;
   formularioCEEE: boolean;
+  listaRateio: boolean;
+  instrumentoJuridico: boolean;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────

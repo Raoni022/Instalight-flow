@@ -10,7 +10,14 @@ import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
 import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
-import { gerarTextoProcuracao, exportarFormularioPDFStandalone } from '../../helpers/export';
+import {
+  gerarTextoProcuracao,
+  exportarFormularioPDFStandalone,
+  gerarTextoListaRateio,
+  exportarListaRateioPDFStandalone,
+  gerarTextoInstrumentoJuridico,
+  exportarInstrumentoJuridicoPDFStandalone,
+} from '../../helpers/export';
 
 interface DocumentosTabProps {
   fd: FormData;
@@ -30,7 +37,9 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
 }) => {
   const [procuracao, setProcuracao]       = useState('');
   const [refiningProc, setRefiningProc]   = useState(false);
-  const [activeDoc, setActiveDoc]         = useState<'procuracao' | 'formulario'>('procuracao');
+  const [activeDoc, setActiveDoc]         = useState<'procuracao' | 'formulario' | 'rateio' | 'juridico'>('procuracao');
+
+  const precisaRateio = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC'].includes(fd.tipoCaracterizacao);
 
   const gerarProcuracao = () => {
     setProcuracao(gerarTextoProcuracao(fd, calc));
@@ -116,27 +125,38 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
     <div className="flex flex-col h-full">
       {/* Sub-tabs */}
       <div className="border-b border-slate-200 bg-white px-3 pt-3">
-        <div className="flex gap-3 mb-3">
-          <button
-            onClick={() => setActiveDoc('procuracao')}
-            className={`px-3 py-1 text-xs font-semibold rounded-t ${
-              activeDoc === 'procuracao'
-                ? 'bg-brand-500 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            A1 — Procuração Específica
-          </button>
-          <button
-            onClick={() => setActiveDoc('formulario')}
-            className={`px-3 py-1 text-xs font-semibold rounded-t ${
-              activeDoc === 'formulario'
-                ? 'bg-brand-500 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            A2 — Formulário CEEE
-          </button>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {(['procuracao', 'formulario'] as const).map((id) => (
+            <button
+              key={id}
+              onClick={() => setActiveDoc(id)}
+              className={`px-3 py-1 text-xs font-semibold rounded-t ${
+                activeDoc === id ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {id === 'procuracao' ? 'A1 — Procuração Específica' : 'A2 — Formulário CEEE'}
+            </button>
+          ))}
+          {precisaRateio && (
+            <button
+              onClick={() => setActiveDoc('rateio')}
+              className={`px-3 py-1 text-xs font-semibold rounded-t ${
+                activeDoc === 'rateio' ? 'bg-brand-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              }`}
+            >
+              D1 — Lista de Rateio
+            </button>
+          )}
+          {precisaRateio && (
+            <button
+              onClick={() => setActiveDoc('juridico')}
+              className={`px-3 py-1 text-xs font-semibold rounded-t ${
+                activeDoc === 'juridico' ? 'bg-brand-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              }`}
+            >
+              D2 — Instrumento Jurídico
+            </button>
+          )}
         </div>
       </div>
 
@@ -193,6 +213,56 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 <p className="text-sm">Clique em &quot;Gerar / Atualizar&quot; para criar a procuração</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Lista de Rateio ── */}
+        {activeDoc === 'rateio' && (
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-slate-800">Lista de Rateio dos Créditos de Energia</h3>
+                <p className="text-xs text-slate-500">Lei Federal n° 14.300/2022, Art. 27 — {fd.tipoCaracterizacao}</p>
+              </div>
+              <button
+                onClick={() => { exportarListaRateioPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, listaRateio: true })); }}
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+              >
+                Exportar PDF
+              </button>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+              ⚠️ Preencha os campos <strong>[INSERIR...]</strong> com os dados das UCs beneficiárias antes de exportar.
+              Os percentuais devem somar 100%. Verificar exigência de firma reconhecida pela CEEE.
+            </div>
+            <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
+              {gerarTextoListaRateio(fd, calc)}
+            </pre>
+          </div>
+        )}
+
+        {/* ── Instrumento Jurídico ── */}
+        {activeDoc === 'juridico' && (
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-slate-800">Instrumento Jurídico de Solidariedade</h3>
+                <p className="text-xs text-slate-500">Cessão de créditos GD — Lei 14.300/2022, Art. 27</p>
+              </div>
+              <button
+                onClick={() => { exportarInstrumentoJuridicoPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, instrumentoJuridico: true })); }}
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+              >
+                Exportar PDF
+              </button>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+              ⚠️ Modelo de instrumento particular. Preencha os dados dos cessionários. <strong>Firmas dos signatários devem ser reconhecidas em cartório.</strong>
+              Verificar com a CEEE se instrumento particular é aceito ou se é necessária escritura pública.
+            </div>
+            <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
+              {gerarTextoInstrumentoJuridico(fd, calc)}
+            </pre>
           </div>
         )}
 

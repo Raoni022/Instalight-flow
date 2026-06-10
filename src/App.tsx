@@ -96,6 +96,8 @@ const INITIAL_DOCS: DocsGerados = {
   memorial: false,
   procuracao: false,
   formularioCEEE: false,
+  listaRateio: false,
+  instrumentoJuridico: false,
 };
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -384,7 +386,7 @@ export default function App() {
       nomeProjeto: proj.nomeProjeto ? `${proj.nomeProjeto} (cópia)` : '',
       label: `${proj.label} (cópia)`,
       status: 'rascunho',
-      docsGerados: { diagramas: true, memorial: false, procuracao: false, formularioCEEE: false },
+      docsGerados: { diagramas: true, memorial: false, procuracao: false, formularioCEEE: false, listaRateio: false, instrumentoJuridico: false },
       documentos: [],
       criadoEm: agora,
       atualizadoEm: agora,

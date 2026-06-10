@@ -269,14 +269,14 @@ function _buildPendenciasPDF(
     {
       id: 'D1',
       doc: 'Lista de rateio dos créditos de energia',
-      gerado: false,
-      como: 'Aplicável para Geração Compartilhada, EMUC ou Autoconsumo Remoto. Elaborar conforme Lei 14.300/2022 e REN 1.000/2021.',
+      gerado: docsGerados.listaRateio,
+      como: 'Gere na aba "Documentos" → D1. Aplicável para Geração Compartilhada, EMUC ou Autoconsumo Remoto. Preencha os dados das UCs beneficiárias.',
     },
     {
       id: 'D2',
       doc: 'Instrumento jurídico de solidariedade',
-      gerado: false,
-      como: 'Aplicável quando a UC beneficiária é distinta da UC geradora. Elaborar conforme Art. 26 da REN 1.000/2021.',
+      gerado: docsGerados.instrumentoJuridico,
+      como: 'Gere na aba "Documentos" → D2. Firmas devem ser reconhecidas em cartório. Verificar com a CEEE se instrumento particular é aceito.',
     },
     {
       id: 'D3',
@@ -419,6 +419,217 @@ export function exportarMemorialPDFStandalone(
   doc.save(filename);
 }
 
+// ── D1: Lista de Rateio dos Créditos ─────────────────────────────────────
+
+export function gerarTextoListaRateio(fd: FormData, calc: Calculos): string {
+  const hoje = fd.dataproject || new Date().toLocaleDateString('pt-BR');
+  const caract = fd.tipoCaracterizacao || 'Geração Compartilhada';
+  return `LISTA DE RATEIO DOS CRÉDITOS DE ENERGIA ELÉTRICA
+Conforme Lei Federal n° 14.300/2022 — Art. 2°, IX e Art. 27
+
+${fd.cidade || 'Porto Alegre'}, ${hoje}.
+
+UNIDADE GERADORA (UC TITULAR DA GERAÇÃO)
+UC Número:       ${fd.codigoUC || '[INSERIR CÓDIGO DA UC GERADORA]'}
+Titular:         ${fd.nomeCliente || '[INSERIR NOME DO TITULAR]'}
+CPF/CNPJ:        ${fd.cpfCnpj || '[INSERIR]'}
+Endereço:        ${fd.endereco || '[INSERIR ENDEREÇO]'}
+Cidade/UF:       ${fd.cidade || 'Porto Alegre'} / RS
+Distribuidora:   CEEE Equatorial — Rio Grande do Sul
+Enquadramento:   ${caract} — ${calc.enq} de ${calc.kWp} kWp
+
+GERAÇÃO ESTIMADA DO SISTEMA FOTOVOLTAICO
+Geração estimada anual:  ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
+Geração estimada mensal: ${Math.round(calc.geracaoAnual / 12).toLocaleString('pt-BR')} kWh/mês
+
+RELAÇÃO DE UNIDADES CONSUMIDORAS BENEFICIÁRIAS
+(Preencher todos os campos — percentuais devem somar 100%)
+
+| Nº | UC Beneficiária | Titular da UC Beneficiária         | CPF/CNPJ         | % Créditos | kWh/mês estimado |
+|----|-----------------|-------------------------------------|-----------------|------------|------------------|
+| 01 | [INSERIR UC]    | [INSERIR NOME DO TITULAR]          | [INSERIR]        | ___,__ %   | _______ kWh      |
+| 02 | [INSERIR UC]    | [INSERIR NOME DO TITULAR]          | [INSERIR]        | ___,__ %   | _______ kWh      |
+| 03 | [INSERIR UC]    | [INSERIR NOME DO TITULAR]          | [INSERIR]        | ___,__ %   | _______ kWh      |
+| 04 | [INSERIR UC]    | [INSERIR NOME DO TITULAR]          | [INSERIR]        | ___,__ %   | _______ kWh      |
+|    |                 |                         TOTAL (%)   |                 | 100,00 %   |                  |
+
+Observações:
+• Os percentuais de rateio são definidos pelo titular da UC geradora e podem ser alterados
+  mediante nova solicitação à distribuidora (CEEE Equatorial).
+• As UCs beneficiárias devem estar na mesma área de concessão da UC geradora.
+• Para Autoconsumo Remoto: as UCs devem pertencer ao mesmo titular (CPF/CNPJ).
+• Para Geração Compartilhada / EMUC: as UCs podem ter titulares distintos.
+• O rateio é realizado mensalmente sobre os créditos gerados, conforme Art. 27 da Lei 14.300/2022.
+
+BASE LEGAL
+• Lei Federal n° 14.300/2022 — Marco Legal da Micro e Minigeração Distribuída
+• ANEEL REN n° 1.000/2021 — Módulo 3 — Seção 3.8
+• NT.00020.EQTL-06 (CEEE Equatorial) — Revisão 12/2025
+
+DECLARAÇÃO DO TITULAR
+O(a) abaixo assinado(a), titular da unidade geradora identificada acima, declara que os percentuais
+de rateio indicados neste documento refletem sua vontade e estão em conformidade com a legislação
+vigente.
+
+Assinatura: _______________________________
+${fd.nomeCliente || '[NOME DO TITULAR]'}
+${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}: ${fd.cpfCnpj || '[CPF/CNPJ]'}
+
+${fd.cidade || 'Porto Alegre'}, ${hoje}.
+
+NOTA: Este documento deve ser apresentado junto ao Formulário de Solicitação de Orçamento
+de Conexão à CEEE Equatorial. O reconhecimento de firma pode ser exigido pela distribuidora.`;
+}
+
+function _buildListaRateioPDF(fd: FormData, calc: Calculos) {
+  const doc = makePDF('p', 'a4');
+  const W = doc.internal.pageSize.getWidth();
+  pdfHeader(doc, fd);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('LISTA DE RATEIO DOS CRÉDITOS DE ENERGIA', W / 2, 35, { align: 'center' });
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  doc.text('Lei Federal n° 14.300/2022 — Art. 2°, IX e Art. 27  |  CEEE Equatorial', W / 2, 42, { align: 'center' });
+  doc.setTextColor(30, 30, 30);
+
+  // Banner de aplicabilidade
+  const caract = fd.tipoCaracterizacao || 'Geração Compartilhada';
+  const aplicavel = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC'].includes(caract);
+  if (!aplicavel) {
+    doc.setFillColor(255, 243, 205);
+    doc.rect(14, 48, W - 28, 14, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 80, 0);
+    doc.text('⚠ ATENÇÃO: Projeto caracterizado como "' + caract + '"', 16, 54);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Lista de rateio aplicável a Autoconsumo Remoto, Geração Compartilhada e EMUC.', 16, 59);
+    doc.setTextColor(30, 30, 30);
+  }
+
+  addTextBlock(doc, gerarTextoListaRateio(fd, calc), 14, 14, aplicavel ? 52 : 68, 5.5);
+  pdfRTWarning(doc);
+  pdfFooter(doc, fd, 1, 1);
+  return { doc, filename: makeFilename('lista_rateio', fd) };
+}
+
+// ── D2: Instrumento Jurídico de Solidariedade ─────────────────────────────
+
+export function gerarTextoInstrumentoJuridico(fd: FormData, calc: Calculos): string {
+  const hoje = fd.dataproject || new Date().toLocaleDateString('pt-BR');
+  const caract = fd.tipoCaracterizacao || 'Geração Compartilhada';
+
+  const cedente = fd.tipoPessoa === 'fisica'
+    ? `${fd.nomeCliente || '[NOME]'}, CPF nº ${fd.cpfCnpj || '[CPF]'}, residente em ${fd.endereco || '[ENDEREÇO]'}`
+    : `${fd.nomeCliente || '[NOME]'}, CNPJ nº ${fd.cpfCnpj || '[CNPJ]'}, com sede em ${fd.endereco || '[ENDEREÇO]'}`;
+
+  return `INSTRUMENTO PARTICULAR DE SOLIDARIEDADE E CESSÃO DE CRÉDITOS
+DE ENERGIA ELÉTRICA — GERAÇÃO DISTRIBUÍDA
+
+${fd.cidade || 'Porto Alegre'}, ${hoje}.
+
+BASE LEGAL: Lei Federal n° 14.300/2022 (Art. 27) e ANEEL REN n° 1.000/2021
+
+PARTES
+
+CEDENTE (Titular da UC Geradora):
+  ${cedente}
+  UC Geradora nº: ${fd.codigoUC || '[INSERIR UC GERADORA]'}
+
+CESSIONÁRIO(S) (Titular(es) das UC(s) Beneficiária(s)):
+  Nome/Razão Social: [INSERIR NOME DO CESSIONÁRIO 1]
+  CPF/CNPJ:          [INSERIR CPF/CNPJ]
+  UC Beneficiária:   [INSERIR NÚMERO DA UC]
+
+  Nome/Razão Social: [INSERIR NOME DO CESSIONÁRIO 2]  (se aplicável)
+  CPF/CNPJ:          [INSERIR CPF/CNPJ]
+  UC Beneficiária:   [INSERIR NÚMERO DA UC]
+
+OBJETO
+
+O presente instrumento tem por objeto a formalização da solidariedade entre as partes
+acima identificadas para fins de participação no sistema de ${caract.toLowerCase()} nos
+termos da Lei Federal n° 14.300/2022 e da Resolução Normativa ANEEL n° 1.000/2021.
+
+O CEDENTE, titular do sistema de geração fotovoltaica de ${calc.kWp} kWp instalado na
+UC nº ${fd.codigoUC || '[UC GERADORA]'}, na área de concessão da CEEE Equatorial (RS),
+CEDE E TRANSFERE aos CESSIONÁRIOS os créditos de energia elétrica gerados pelo sistema
+fotovoltaico, nas proporções definidas na Lista de Rateio em vigor.
+
+CLÁUSULAS
+
+Cláusula 1ª — SOLIDARIEDADE
+As partes são solidariamente responsáveis pelas obrigações perante a CEEE Equatorial
+decorrentes do sistema de ${caract.toLowerCase()}, nos termos do Art. 27, §2° da
+Lei Federal n° 14.300/2022.
+
+Cláusula 2ª — PROPORCIONALIDADE DOS CRÉDITOS
+A distribuição dos créditos de energia elétrica entre as UCs participantes será realizada
+conforme a Lista de Rateio apresentada à CEEE Equatorial, a qual integra este instrumento
+como Anexo I.
+
+Cláusula 3ª — VIGÊNCIA
+Este instrumento tem vigência por prazo indeterminado, podendo ser rescindido por qualquer
+das partes mediante comunicação formal à distribuidora com antecedência mínima de 30 dias.
+
+Cláusula 4ª — ALTERAÇÕES
+Qualquer alteração nos percentuais de rateio ou nas UCs participantes deve ser comunicada
+à CEEE Equatorial mediante nova solicitação formal, acompanhada de Lista de Rateio atualizada.
+
+Cláusula 5ª — FORO
+As partes elegem o foro da comarca de ${fd.cidade || 'Porto Alegre'} — RS para dirimir
+eventuais litígios decorrentes deste instrumento.
+
+ASSINATURAS
+
+CEDENTE:
+Assinatura: _______________________________
+Nome:       ${fd.nomeCliente || '[NOME]'}
+${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}:  ${fd.cpfCnpj || '[CPF/CNPJ]'}
+Data:       ___/___/______
+
+CESSIONÁRIO 1:
+Assinatura: _______________________________
+Nome:       [INSERIR NOME]
+CPF/CNPJ:   [INSERIR]
+Data:       ___/___/______
+
+CESSIONÁRIO 2 (se aplicável):
+Assinatura: _______________________________
+Nome:       [INSERIR NOME]
+CPF/CNPJ:   [INSERIR]
+Data:       ___/___/______
+
+TESTEMUNHAS:
+1. Nome: _______________________________ CPF: _______________ Assinatura: _______________
+2. Nome: _______________________________ CPF: _______________ Assinatura: _______________
+
+NOTA: Este instrumento deve ter as firmas reconhecidas em cartório conforme exigência
+da CEEE Equatorial. Verificar se a distribuidora aceita instrumento particular ou se exige
+escritura pública conforme o valor e as partes envolvidas.`;
+}
+
+function _buildInstrumentoJuridicoPDF(fd: FormData, calc: Calculos) {
+  const doc = makePDF('p', 'a4');
+  const W = doc.internal.pageSize.getWidth();
+  pdfHeader(doc, fd);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('INSTRUMENTO JURÍDICO DE SOLIDARIEDADE', W / 2, 35, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  doc.text('Cessão de Créditos de GD — Lei Federal n° 14.300/2022 (Art. 27)', W / 2, 42, { align: 'center' });
+  doc.setTextColor(30, 30, 30);
+  addTextBlock(doc, gerarTextoInstrumentoJuridico(fd, calc), 14, 14, 52, 5.5);
+  pdfRTWarning(doc);
+  pdfFooter(doc, fd, 1, 1);
+  return { doc, filename: makeFilename('instrumento_juridico', fd) };
+}
+
 // ── API pública — retorno de Blob (para dossiê ZIP) ──────────────────────
 
 /** Retorna a Procuração como Blob para uso no dossiê ZIP. */
@@ -447,4 +658,16 @@ export function getBlobMemorial(
 ): { blob: Blob; filename: string } {
   const { doc, filename } = _buildMemorialPDF(fd, calc, memorialIA);
   return { blob: doc.output('blob') as Blob, filename };
+}
+
+/** Exporta a Lista de Rateio como PDF (download imediato). */
+export function exportarListaRateioPDFStandalone(fd: FormData, calc: Calculos): void {
+  const { doc, filename } = _buildListaRateioPDF(fd, calc);
+  doc.save(filename);
+}
+
+/** Exporta o Instrumento Jurídico como PDF (download imediato). */
+export function exportarInstrumentoJuridicoPDFStandalone(fd: FormData, calc: Calculos): void {
+  const { doc, filename } = _buildInstrumentoJuridicoPDF(fd, calc);
+  doc.save(filename);
 }
