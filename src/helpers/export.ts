@@ -118,7 +118,8 @@ function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   doc.text('DADOS DO SISTEMA', 14, y);
   y += 8;
   linha('Tipo de Instalação', fd.tipoInstalacao || 'Nova');
-  linha('Tipo de Geração', calc.enqTotal);
+  linha('Caracterização (Lei 14.300/2022)', fd.tipoCaracterizacao);
+  linha('Tipo de Geração / Enquadramento', calc.enqTotal);
   if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
     linha('Potência CC — nova instalação', `${calc.kWp} kWp`);
     linha('Potência CC — existente', `${calc.kWpExistente} kWp`);

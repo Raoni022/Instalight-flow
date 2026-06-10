@@ -94,10 +94,13 @@ Endereço da UC: ${fd.endereco || '—'}
 Código UC: ${fd.codigoUC || '—'}
 Nº Conta-Contrato: ${fd.numContaContrato || '—'}
 Nº Fatura: ${fd.numeroFatura || '—'}
+${fd.numPoste ? `Nº do Poste: ${fd.numPoste}` : ''}
+${fd.latitude || fd.longitude ? `Coordenadas GPS: Lat ${fd.latitude || '—'} / Long ${fd.longitude || '—'}` : ''}
 
 DADOS DO SISTEMA
 Tipo de Instalação: ${fd.tipoInstalacao || 'Nova'}
-Tipo de Geração: ${calc.enq}
+Caracterização (Lei 14.300/2022): ${fd.tipoCaracterizacao}
+Tipo de Geração / Enquadramento: ${calc.enqTotal}
 Potência CC instalada: ${calc.kWp} kWp
 Potência CA nominal: ${calc.kWtCA} kW
 Tipo de Ligação: ${fd.tipoLigacao}

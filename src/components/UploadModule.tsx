@@ -78,6 +78,7 @@ const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
 "modeloPainel":"","potenciaUnitariaWp":null,
 "vocUnitario":null,"iscUnitario":null,"vmppUnitario":null,"imppUnitario":null,
 "eficienciaPainel":null,"coefTempVoc":null,"noct":null,"certificacaoPainel":"",
+"comprimentoPainel":null,"larguraPainel":null,"pesoPainel":null,
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
   inversor: `{
@@ -85,10 +86,12 @@ const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
 "quantidadeInversores":null,"numMPPT":null,"faixaMPPTMin":null,"faixaMPPTMax":null,
 "tensaoPartidaCC":null,"eficienciaInv":null,"tipoLigacao":"",
 "dpsCCTipo":"","dpsCCTensao":null,"dpsCATipo":"","dpsCATensao":null,
+"potMaxCCInv":null,"iMaxCCInv":null,"potMaxCAInv":null,"iMaxCAInv":null,
+"vCAmaxInv":null,"vCAminInv":null,
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
   art: `{
-"nomeResponsavel":"","numeroCRT":"","numART":"","cidade":"",
+"nomeResponsavel":"","profissaoRT":"","numeroCRT":"","numART":"","cidade":"",
 "nomeEmpresa":"","cnpjEmpresa":"","enderecoEmpresa":"","dataproject":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 
@@ -101,34 +104,44 @@ const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
 "paineisSerie":null,"stringParalelo":null,
 "vocUnitario":null,"iscUnitario":null,"vmppUnitario":null,"imppUnitario":null,
 "eficienciaPainel":null,"coefTempVoc":null,"noct":null,"certificacaoPainel":"",
+"comprimentoPainel":null,"larguraPainel":null,"pesoPainel":null,
 "modeloInversor":"","potenciaCAkW":null,"tensaoEntradaCC":null,"tensaoSaidaCA":null,
 "quantidadeInversores":null,"numMPPT":null,"faixaMPPTMin":null,"faixaMPPTMax":null,
 "tensaoPartidaCC":null,"eficienciaInv":null,
+"potMaxCCInv":null,"iMaxCCInv":null,"potMaxCAInv":null,"iMaxCAInv":null,
+"vCAmaxInv":null,"vCAminInv":null,
 "dpsCCTipo":"","dpsCCTensao":null,"dpsCATipo":"","dpsCATensao":null,
 "disjuntorCC":null,"disjuntorCA":null,"tipoTelhado":"","tempMinima":null,"coordenadas":"",
-"nomeResponsavel":"","numeroCRT":"","numART":"","cidade":"",
+"nomeResponsavel":"","profissaoRT":"","numeroCRT":"","numART":"","cidade":"",
 "nomeEmpresa":"","cnpjEmpresa":"","enderecoEmpresa":"",
 "inscricaoEstadual":"","rgRepresentante":"","emailContato":"","telefoneContato":"",
 "confiancaExtracao":"alta|media|baixa","camposNaoEncontrados":[],"observacoes":""}`,
 };
 
-const SYSTEM_PROMPT = `Você é especialista em leitura de documentos fotovoltaicos brasileiros.
+const SYSTEM_PROMPT = `Você é especialista em leitura de documentos fotovoltaicos brasileiros para projetos de geração distribuída na CEEE Equatorial (Rio Grande do Sul).
 Extraia dados e retorne APENAS JSON valido, sem markdown ou explicacoes.
 
 Documentos comuns e onde localizar campos:
 - Fatura CEEE Equatorial: "Codigo da Unidade Consumidora" (7-8 digitos = codigoUC),
   "Conta Contrato" (numContaContrato), coluna "Consumo" em kWh (consumoMensalKwh),
-  nome e CPF/CNPJ do titular, endereco da UC.
-- Datasheet painel solar: modelo (modeloPainel), potencia em Wp (potenciaUnitariaWp: 300-700),
+  nome e CPF/CNPJ do titular, endereco da UC, numero do poste (numPoste),
+  numero do medidor (numeroMedidor), tipo de padrao de entrada (tipoPadrao).
+- Datasheet painel solar (Tabela 3 CEEE): modelo (modeloPainel), potencia em Wp (potenciaUnitariaWp: 300-700),
   Voc (vocUnitario: 30-55V), Isc (iscUnitario: 5-20A), Vmpp (vmppUnitario: 25-50V),
   Impp (imppUnitario: 5-18A), eficiencia % (eficienciaPainel: 18-23%),
-  coef. temperatura Voc em %/C (coefTempVoc: valor negativo, ex: -0.28), NOCT em C.
-- Datasheet inversor: modelo (modeloInversor), potencia CA em kW (potenciaCAkW),
+  coef. temperatura Voc em %/C (coefTempVoc: valor negativo, ex: -0.28), NOCT em C,
+  dimensoes fisicas em mm (comprimentoPainel, larguraPainel) e peso em kg (pesoPainel).
+- Datasheet inversor (Tabela 4 CEEE): modelo (modeloInversor), potencia CA em kW (potenciaCAkW),
   faixa MPPT minima/maxima em V (faixaMPPTMin/faixaMPPTMax), tensao partida CC (tensaoPartidaCC),
-  eficiencia maxima % (eficienciaInv: 95-99%).
+  eficiencia maxima % (eficienciaInv: 95-99%),
+  potencia maxima entrada CC em W ou kW (potMaxCCInv), corrente maxima entrada CC em A (iMaxCCInv),
+  potencia maxima saida CA em W ou kW (potMaxCAInv), corrente maxima saida CA em A (iMaxCAInv),
+  tensao CA maxima em V (vCAmaxInv), tensao CA minima em V (vCAminInv).
+- ART/TRT (responsabilidade tecnica): nome do RT (nomeResponsavel), profissao (profissaoRT: "Engenheiro Eletricista", "Eletrotecnico" etc),
+  registro CREA/CRT (numeroCRT), numero ART/TRT (numART), empresa, cidade.
 
 Formato numerico: documentos brasileiros usam virgula decimal (ex: "37,5 V" → retornar 37.5).
-Se valor não encontrado ou fora do range esperado, retorne null. Não invente valores.`;
+Potencias: converter kW para kW (nao converter para W). Se valor não encontrado ou fora do range esperado, retorne null. Não invente valores.`;
 
 function parseJson(txt: string): Record<string, unknown> | null {
   try { return JSON.parse(txt.trim()); } catch { /* continue */ }

@@ -40,22 +40,23 @@ NÚMEROS: Todos os valores numéricos técnicos já estão calculados no documen
 TAREFA: Complete APENAS os quatro marcadores [[[IA_NARRATIVA_SECx]]] com 2–4 parágrafos técnicos formais cada. Não altere nenhuma outra parte do documento. Retorne o documento completo com os marcadores substituídos.`;
 
 const SECOES = [
-  { id: 'Siglas', label: 'Lista de Siglas',            icon: '📑', tipo: 'js' },
-  { id: '1',      label: '1. Objetivo',                icon: '🎯', tipo: 'ia' },
-  { id: '2',      label: '2. Referências Normativas',  icon: '📋', tipo: 'js' },
-  { id: '3',      label: '3. Dados da UC',             icon: '🏠', tipo: 'js' },
-  { id: '4',      label: '4. Padrão de Entrada',       icon: '⚡', tipo: 'js' },
-  { id: '5',      label: '5. Dimensionamento Gerador', icon: '☀️', tipo: 'js' },
-  { id: '6',      label: '6. Dimensionamento Inversor',icon: '🔄', tipo: 'js' },
-  { id: '7',      label: '7. Estrutura de Fixação',    icon: '🏗️', tipo: 'ia' },
-  { id: '8',      label: '8. Proteções',               icon: '🛡️', tipo: 'js' },
-  { id: '9',      label: '9. Cabos',                   icon: '🔌', tipo: 'js' },
-  { id: '10',     label: '10. Geração e Impacto',      icon: '🌱', tipo: 'ia' },
-  { id: '11',     label: '11. Placas e Identificações',icon: '⚠️', tipo: 'js' },
-  { id: '12',     label: '12. Comissionamento',        icon: '🔬', tipo: 'ia' },
-  { id: '13',     label: '13. Manutenção',             icon: '🔧', tipo: 'js' },
-  { id: '14',     label: '14. Notas NR-10',            icon: '⛑️', tipo: 'js' },
-  { id: '15',     label: '15. Normas Adotadas',        icon: '📖', tipo: 'js' },
+  { id: 'Siglas', label: 'Siglas e Abreviaturas',       icon: '📑', tipo: 'js' },
+  { id: '1',      label: '1. Objetivo',                 icon: '🎯', tipo: 'ia' },
+  { id: '2',      label: '2. Referências Normativas',   icon: '📋', tipo: 'js' },
+  { id: '3',      label: '3. Dados da UC',              icon: '🏠', tipo: 'js' },
+  { id: '4',      label: '4. Levantamento de Carga',    icon: '📊', tipo: 'js' },
+  { id: '5',      label: '5. Padrão de Entrada',        icon: '⚡', tipo: 'js' },
+  { id: '6',      label: '6. Estimativa de Geração',    icon: '🌱', tipo: 'ia' },
+  { id: '7',      label: '7. Dim. Gerador (Tabela 3)',  icon: '☀️', tipo: 'js' },
+  { id: '8',      label: '8. Dim. Inversor (Tabela 4)', icon: '🔄', tipo: 'js' },
+  { id: '9',      label: '9. Estrutura de Fixação',     icon: '🏗️', tipo: 'ia' },
+  { id: '10',     label: '10. Proteções (Tabela 5)',    icon: '🛡️', tipo: 'js' },
+  { id: '11',     label: '11. Cabos',                   icon: '🔌', tipo: 'js' },
+  { id: '12',     label: '12. Placa de Advertência',    icon: '⚠️', tipo: 'js' },
+  { id: '13',     label: '13. Comissionamento',         icon: '🔬', tipo: 'ia' },
+  { id: '14',     label: '14. Exploração/Manutenção',   icon: '🔧', tipo: 'js' },
+  { id: '15',     label: '15. Notas NR-10',             icon: '⛑️', tipo: 'js' },
+  { id: '16',     label: '16. Normas Adotadas',         icon: '📖', tipo: 'js' },
 ] as const;
 
 export const MemorialTab: React.FC<MemorialTabProps> = ({
@@ -75,7 +76,7 @@ export const MemorialTab: React.FC<MemorialTabProps> = ({
 Contexto do projeto:
 - Cliente: ${fd.nomeCliente || '[não informado]'} | Endereço: ${fd.endereco || '[não informado]'}
 - Sistema: ${calc.kWp} kWp / ${calc.kWtCA} kW CA | ${fd.tipoLigacao} | ${fd.numeroPaineis || '?'} módulos ${fd.modeloPainel || ''}
-- Enquadramento: ${calc.enq} | Telhado: ${fd.tipoTelhado}
+- Enquadramento: ${calc.enq} | Caracterização: ${fd.tipoCaracterizacao} | Telhado: ${fd.tipoTelhado}
 - Geração estimada: ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
 - CO₂ evitado: ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg/ano | Árvores equiv.: ${calc.arvoresEquivalente}
 
@@ -94,7 +95,7 @@ ${template}`;
       const texto: string = res.content[0].text;
       setMemorialIA(texto);
       setDocsGerados((p) => ({ ...p, memorial: true }));
-      setToast({ message: 'Memorial profissional gerado! 15 seções conforme NT.00020.EQTL-06.', type: 'success' });
+      setToast({ message: 'Memorial profissional gerado! 16 seções conforme NT.00020.EQTL-06 REV 06.', type: 'success' });
     } catch (e: unknown) {
       setToast({ message: 'Erro ao gerar memorial: ' + (e instanceof Error ? e.message : String(e)), type: 'error' });
     } finally {
@@ -141,7 +142,7 @@ ${template}`;
       <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-white">
         <div>
           <h2 className="font-semibold text-slate-800">Memorial Técnico-Descritivo Profissional</h2>
-          <p className="text-xs text-slate-500">15 seções • NT.00020.EQTL-06 (CEEE Equatorial) • 80% JS + 20% IA</p>
+          <p className="text-xs text-slate-500">16 seções • NT.00020.EQTL-06 REV 06 (CEEE Equatorial) • 80% JS + 20% IA</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -211,7 +212,7 @@ ${template}`;
             <div className="text-center py-16 text-slate-400">
               <div className="text-5xl mb-4">📐</div>
               <p className="font-medium text-slate-600 mb-1">Memorial Técnico-Descritivo Profissional</p>
-              <p className="text-sm mb-2">15 seções • Baseado em projetos reais aprovados pela CEEE Equatorial</p>
+              <p className="text-sm mb-2">16 seções • Baseado em projetos reais aprovados pela CEEE Equatorial</p>
               <p className="text-xs text-slate-400 mb-6">Estrutura conforme NT.00020.EQTL-06 + FUNREBOM + NBR 16690</p>
               <div className="flex gap-3 justify-center">
                 <button
