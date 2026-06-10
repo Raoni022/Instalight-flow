@@ -149,6 +149,33 @@ export interface FormData {
   observacoesExistente:   string;  // Observações livres sobre o sistema existente
   situacaoPadrao:         'Mantido' | 'Alterado / aumento de carga' | 'A definir pelo RT';
   tipoAmpliacao:          'Mesmo inversor existente' | 'Novo inversor adicional' | 'Substituição de inversor' | 'A definir pelo RT';
+
+  // CEEE — Tipo de Caracterização (Lei 14.300/2022 Art. 2°)
+  tipoCaracterizacao: 'Autoconsumo Local' | 'Autoconsumo Remoto' | 'Geração Compartilhada' | 'EMUC';
+
+  // RESPONSÁVEL TÉCNICO — profissão para capa do memorial CEEE
+  profissaoRT: string;
+
+  // MÓDULO FV — dimensões físicas (Tabela 3 Anexo III CEEE)
+  comprimentoPainel: string;
+  larguraPainel:     string;
+  pesoPainel:        string;
+
+  // CAIXA DE MEDIÇÃO (Seção 5.4 Anexo III CEEE)
+  tipoCaixaMedicao:    'Existente' | 'Nova';
+  localInstalacaoCaixa: 'Poste auxiliar' | 'Muro' | 'Fachada';
+
+  // DSV — Dispositivo de Seccionamento Visível (Seção 9.3 Anexo III CEEE)
+  temDSV:           'Sim' | 'Não';
+  caracteristicasDSV: string;
+
+  // INVERSOR — campos adicionais Tabela 4 Anexo III CEEE
+  potMaxCCInv: string;  // Máxima potência entrada CC (kW)
+  iMaxCCInv:   string;  // Máxima corrente CC (A)
+  potMaxCAInv: string;  // Máxima potência saída CA (kW)
+  iMaxCAInv:   string;  // Máxima corrente saída CA (A)
+  vCAmaxInv:   string;  // Máxima tensão CA (V)
+  vCAminInv:   string;  // Mínima tensão CA (V)
 }
 
 // ── Resultados de cálculo (motor JS — IA nunca calcula) ──────────────────

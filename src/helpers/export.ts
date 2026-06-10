@@ -203,14 +203,17 @@ function _buildPendenciasPDF(
   ];
   const groupB = [
     { id: 'B1', doc: 'Diagrama Unifilar',            gerado: true,                   como: 'Disponível na aba "Diagramas" — exportar SVG ou PDF' },
-    { id: 'B2', doc: 'Diagrama Pluri (Bi/Trifilar)', gerado: true,                   como: 'Incluído na mesma prancha da aba "Diagramas"' },
+    { id: 'B2', doc: 'Diagrama de Blocos (Bi/Trifilar)', gerado: true,              como: 'Incluído na mesma prancha da aba "Diagramas"' },
     { id: 'B3', doc: 'Planta de Situação / Locação', gerado: false,
       como: fd.endereco
         ? `Abrir maps.google.com/?q=${encodeURIComponent(fd.endereco)} — capturar print com escala e norte indicados`
         : 'Preencha o endereço da UC para gerar o link do Google Maps' },
     { id: 'B4', doc: 'Memorial Técnico-Descritivo',  gerado: docsGerados.memorial,   como: 'Gere na aba "Memorial" e valide com o RT' },
-    { id: 'B5', doc: 'TRT/ART (Responsabilidade Técnica)', gerado: false,            como: 'RT deve assinar a ART no sistema do CREA/CFT' },
-    { id: 'B6', doc: 'Data Sheets dos equipamentos', gerado: false,                  como: 'Baixar do site do fabricante e incluir no dossiê' },
+    { id: 'B5', doc: 'TRT/ART — Responsabilidade Técnica (projeto e execução)', gerado: false, como: 'RT deve registrar a ART/TRT no sistema do CREA/CFT competente' },
+    { id: 'B6', doc: 'Datasheets dos equipamentos (módulos e inversor)', gerado: false, como: `Módulo: ${fd.modeloPainel || '—'} | Inversor: ${fd.modeloInversor || '—'} — baixar do site do fabricante` },
+    { id: 'B7', doc: 'Relatório de ensaio dos conversores de potência (em PT)', gerado: false,
+      como: `Relatório em língua portuguesa atestando conformidade do inversor ${fd.modeloInversor || '—'} para a tensão nominal de conexão com a rede (${fd.tensaoSaidaCA || '220'} V). Obter junto ao fabricante ou importador.` },
+    { id: 'B8', doc: 'Dados de registro (formulário CEEE)', gerado: docsGerados.formularioCEEE, como: 'Gere na aba "Documentos" — formulário de solicitação de orçamento de conexão (REH 3.171/2023)' },
   ];
 
   const doc = makePDF('p', 'a4');
@@ -256,8 +259,34 @@ function _buildPendenciasPDF(
 
   sect('GRUPO A — DOCUMENTOS DO CLIENTE');
   groupA.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
-  sect('GRUPO B — DOCUMENTOS TÉCNICOS');
+  sect('GRUPO B — DOCUMENTOS TÉCNICOS (obrigatórios CEEE Anexo III REV 06)');
   groupB.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
+
+  // Grupo D — documentos condicionais (aplicáveis conforme o tipo de projeto)
+  const groupD = [
+    {
+      id: 'D1',
+      doc: 'Lista de rateio dos créditos de energia',
+      gerado: false,
+      como: 'Aplicável para Geração Compartilhada, EMUC ou Autoconsumo Remoto. Elaborar conforme Lei 14.300/2022 e REN 1.000/2021.',
+    },
+    {
+      id: 'D2',
+      doc: 'Instrumento jurídico de solidariedade',
+      gerado: false,
+      como: 'Aplicável quando a UC beneficiária é distinta da UC geradora. Elaborar conforme Art. 26 da REN 1.000/2021.',
+    },
+    {
+      id: 'D3',
+      doc: 'Reconhecimento pela ANEEL (cogeração)',
+      gerado: false,
+      como: 'Aplicável somente para projetos de cogeração qualificada. Apresentar documento emitido pela ANEEL comprovando o reconhecimento.',
+    },
+  ];
+  if (groupD.some(g => !g.gerado)) {
+    sect('GRUPO D — DOCUMENTOS CONDICIONAIS (verificar aplicabilidade)');
+    groupD.forEach((g) => item(g.id, g.doc, false, g.como));
+  }
 
   // Grupo C — somente para projetos de Ampliação
   if (fd.tipoInstalacao === 'Ampliação') {

@@ -77,6 +77,18 @@ export const INITIAL_FORM: FormData = {
   tipoAmpliacao: 'A definir pelo RT',
   // Geração / desempenho local
   irradLocal: '', prCustom: '',
+  // CEEE — Tipo de Caracterização
+  tipoCaracterizacao: 'Autoconsumo Local',
+  // RT — profissão para capa
+  profissaoRT: '',
+  // Módulo FV — dimensões físicas
+  comprimentoPainel: '', larguraPainel: '', pesoPainel: '',
+  // Caixa de medição
+  tipoCaixaMedicao: 'Existente', localInstalacaoCaixa: 'Muro',
+  // DSV
+  temDSV: 'Não', caracteristicasDSV: '',
+  // Inversor — campos extras Tabela 4 CEEE
+  potMaxCCInv: '', iMaxCCInv: '', potMaxCAInv: '', iMaxCAInv: '', vCAmaxInv: '', vCAminInv: '',
 };
 
 const INITIAL_DOCS: DocsGerados = {

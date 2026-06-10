@@ -123,6 +123,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Unidade Consumidora</div>
           <FormField label="Código UC" name="codigoUC" value={fd.codigoUC} onChange={onChange} aiFields={aiFilledFields} placeholder="Código no topo da conta de luz" />
 
+          {/* Tipo de Caracterização CEEE */}
+          <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Caracterização CEEE</div>
+          <FormField label="Tipo de Caracterização" name="tipoCaracterizacao" value={fd.tipoCaracterizacao} onChange={onChange}
+            options={['Autoconsumo Local', 'Autoconsumo Remoto', 'Geração Compartilhada', 'EMUC']}
+            aiFields={aiFilledFields} />
+
           {/* Contato */}
           <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Contato</div>
           {visivel('telefoneCelular') && (
@@ -178,6 +184,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <FormField label="Transformador (ID)" name="transformador" value={fd.transformador} onChange={onChange} aiFields={aiFilledFields}
               placeholder="Ex: TR-4521" />
           )}
+          {/* Caixa de Medição — Seção 5.4 CEEE */}
+          <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Caixa de Medição (Seção 5.4 CEEE)</div>
+          <FormField label="Caixa de Medição" name="tipoCaixaMedicao" value={fd.tipoCaixaMedicao} onChange={onChange}
+            options={['Existente', 'Nova']} aiFields={aiFilledFields} />
+          <FormField label="Local de Instalação" name="localInstalacaoCaixa" value={fd.localInstalacaoCaixa} onChange={onChange}
+            options={['Muro', 'Fachada', 'Poste auxiliar']} aiFields={aiFilledFields} />
           {visivel('numeroMedidor') && (
             <FormField label="Nº do Medidor" name="numeroMedidor" value={fd.numeroMedidor} onChange={onChange} aiFields={aiFilledFields}
               placeholder="Ex: 12345678" />
@@ -210,6 +222,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Datasheet do módulo */}
           <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Datasheet do Módulo</p>
           <p className="text-xs text-slate-400 mb-1 italic">Valores do datasheet (STC). Se não preenchidos, o motor usa estimativas.</p>
+          {visivel('comprimentoPainel') && (
+            <FormField label="Comprimento do Módulo (m)" name="comprimentoPainel" value={fd.comprimentoPainel} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 2.094" />
+          )}
+          {visivel('larguraPainel') && (
+            <FormField label="Largura do Módulo (m)" name="larguraPainel" value={fd.larguraPainel} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 1.134" />
+          )}
+          {visivel('pesoPainel') && (
+            <FormField label="Peso do Módulo (kg)" name="pesoPainel" value={fd.pesoPainel} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 28.5" />
+          )}
           {visivel('vocUnitario') && (
             <FormField label="Voc unitário (V)" name="vocUnitario" value={fd.vocUnitario} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 46.0" />
           )}
@@ -332,7 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Potência CA total: <strong>{calc.kWtCA} kW</strong>
           </div>
           {/* Dados extras do inversor */}
-          <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Dados Extras (Datasheet)</p>
+          <p className="text-xs text-slate-400 mt-2 mb-1 font-medium uppercase tracking-wide">Dados Extras (Tabela 4 CEEE)</p>
           {visivel('numMPPT') && (
             <FormField label="Nº Entradas MPPT" name="numMPPT" value={fd.numMPPT} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 2" />
           )}
@@ -347,6 +368,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
           {visivel('eficienciaInv') && (
             <FormField label="Eficiência máx. (%)" name="eficienciaInv" value={fd.eficienciaInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 97.6" />
+          )}
+          {visivel('potMaxCCInv') && (
+            <FormField label="Pmax entrada CC (kW)" name="potMaxCCInv" value={fd.potMaxCCInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 6.6" />
+          )}
+          {visivel('iMaxCCInv') && (
+            <FormField label="Icc-máx entrada CC (A)" name="iMaxCCInv" value={fd.iMaxCCInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 16.0" />
+          )}
+          {visivel('potMaxCAInv') && (
+            <FormField label="Pca-máx saída CA (kW)" name="potMaxCAInv" value={fd.potMaxCAInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 6.0" />
+          )}
+          {visivel('iMaxCAInv') && (
+            <FormField label="Imáx saída CA (A)" name="iMaxCAInv" value={fd.iMaxCAInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 27.3" />
+          )}
+          {visivel('vCAmaxInv') && (
+            <FormField label="Vca-máx saída CA (V)" name="vCAmaxInv" value={fd.vCAmaxInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 264" />
+          )}
+          {visivel('vCAminInv') && (
+            <FormField label="Vca-min saída CA (V)" name="vCAminInv" value={fd.vCAminInv} onChange={onChange} type="number" aiFields={aiFilledFields} placeholder="Ex: 176" />
           )}
         </CollapsibleSection>
 
@@ -386,6 +425,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <FormField label="Resistência de aterramento medida (Ω)" name="resistenciaAterramento" type="number"
               value={fd.resistenciaAterramento} onChange={onChange}
               placeholder="Ex: 4,5 (deve ser ≤ 10 Ω — NBR 5419)" aiFields={aiFilledFields} />
+          )}
+          {/* DSV — Dispositivo de Seccionamento Visível (Seção 10.3 CEEE) */}
+          <div className="mt-1 mb-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">DSV (Seção 10.3 CEEE)</div>
+          <FormField label="Possui DSV?" name="temDSV" value={fd.temDSV} onChange={onChange}
+            options={['Não', 'Sim']} aiFields={aiFilledFields} />
+          {fd.temDSV === 'Sim' && (
+            <FormField label="Características do DSV" name="caracteristicasDSV" value={fd.caracteristicasDSV} onChange={onChange}
+              placeholder="Ex: Seccionador 32A, bipolar, IP65" aiFields={aiFilledFields} />
           )}
         </CollapsibleSection>
 
@@ -443,6 +490,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <FormField label="Tipo de Responsabilidade" name="tipoResponsabilidade" value={fd.tipoResponsabilidade}
             onChange={onChange} options={['TRT', 'ART']} aiFields={aiFilledFields} />
           <FormField label="Nome do RT" name="nomeResponsavel" value={fd.nomeResponsavel} onChange={onChange} aiFields={aiFilledFields} />
+          <FormField label="Profissão (para capa)" name="profissaoRT" value={fd.profissaoRT} onChange={onChange} aiFields={aiFilledFields}
+            placeholder="Ex: Engenheiro Eletricista, Técnico em Eletrotécnica" />
           <FormField label="Nº CRT/CREA" name="numeroCRT" value={fd.numeroCRT} onChange={onChange} aiFields={aiFilledFields} />
           <FormField
             label={`Nº ${fd.tipoResponsabilidade || 'TRT'}`}
