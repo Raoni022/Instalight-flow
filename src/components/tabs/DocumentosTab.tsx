@@ -137,26 +137,32 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
               {id === 'procuracao' ? 'A1 — Procuração Específica' : 'A2 — Formulário CEEE'}
             </button>
           ))}
-          {precisaRateio && (
-            <button
-              onClick={() => setActiveDoc('rateio')}
-              className={`px-3 py-1 text-xs font-semibold rounded-t ${
-                activeDoc === 'rateio' ? 'bg-brand-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-              }`}
-            >
-              D1 — Lista de Rateio
-            </button>
-          )}
-          {precisaRateio && (
-            <button
-              onClick={() => setActiveDoc('juridico')}
-              className={`px-3 py-1 text-xs font-semibold rounded-t ${
-                activeDoc === 'juridico' ? 'bg-brand-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-              }`}
-            >
-              D2 — Instrumento Jurídico
-            </button>
-          )}
+          <button
+            onClick={() => setActiveDoc('rateio')}
+            className={`px-3 py-1 text-xs font-semibold rounded-t ${
+              activeDoc === 'rateio'
+                ? 'bg-brand-500 text-white'
+                : precisaRateio
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+            title={precisaRateio ? 'Necessário para este tipo de projeto' : 'Aplicável para Geração Compartilhada, Autoconsumo Remoto e EMUC'}
+          >
+            D1 — Lista de Rateio {precisaRateio ? '⚠️' : ''}
+          </button>
+          <button
+            onClick={() => setActiveDoc('juridico')}
+            className={`px-3 py-1 text-xs font-semibold rounded-t ${
+              activeDoc === 'juridico'
+                ? 'bg-brand-500 text-white'
+                : precisaRateio
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+            }`}
+            title={precisaRateio ? 'Necessário para este tipo de projeto' : 'Aplicável para Geração Compartilhada, Autoconsumo Remoto e EMUC'}
+          >
+            D2 — Instrumento Jurídico {precisaRateio ? '⚠️' : ''}
+          </button>
         </div>
       </div>
 
@@ -221,8 +227,8 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-semibold text-slate-800">Lista de Rateio dos Créditos de Energia</h3>
-                <p className="text-xs text-slate-500">Lei Federal n° 14.300/2022, Art. 27 — {fd.tipoCaracterizacao}</p>
+                <h3 className="font-semibold text-slate-800">D1 — Lista de Rateio dos Créditos de Energia</h3>
+                <p className="text-xs text-slate-500">Lei Federal n° 14.300/2022, Art. 27</p>
               </div>
               <button
                 onClick={() => { exportarListaRateioPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, listaRateio: true })); }}
@@ -231,10 +237,18 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 Exportar PDF
               </button>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
-              ⚠️ Preencha os campos <strong>[INSERIR...]</strong> com os dados das UCs beneficiárias antes de exportar.
-              Os percentuais devem somar 100%. Verificar exigência de firma reconhecida pela CEEE.
-            </div>
+            {!precisaRateio ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3 text-xs text-slate-500">
+                ℹ️ Projeto atual: <strong>{fd.tipoCaracterizacao}</strong> — Lista de Rateio <strong>não é obrigatória</strong> para este tipo.
+                É exigida para: Geração Compartilhada, Autoconsumo Remoto e EMUC.
+                Altere o Tipo de Caracterização no formulário (seção Cliente) se necessário.
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+                ⚠️ Projeto <strong>{fd.tipoCaracterizacao}</strong> — documento obrigatório.
+                Preencha os campos <strong>[INSERIR...]</strong> com os dados das UCs beneficiárias. Percentuais devem somar 100%.
+              </div>
+            )}
             <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
               {gerarTextoListaRateio(fd, calc)}
             </pre>
@@ -246,7 +260,7 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-semibold text-slate-800">Instrumento Jurídico de Solidariedade</h3>
+                <h3 className="font-semibold text-slate-800">D2 — Instrumento Jurídico de Solidariedade</h3>
                 <p className="text-xs text-slate-500">Cessão de créditos GD — Lei 14.300/2022, Art. 27</p>
               </div>
               <button
@@ -256,10 +270,19 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 Exportar PDF
               </button>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
-              ⚠️ Modelo de instrumento particular. Preencha os dados dos cessionários. <strong>Firmas dos signatários devem ser reconhecidas em cartório.</strong>
-              Verificar com a CEEE se instrumento particular é aceito ou se é necessária escritura pública.
-            </div>
+            {!precisaRateio ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3 text-xs text-slate-500">
+                ℹ️ Projeto atual: <strong>{fd.tipoCaracterizacao}</strong> — Instrumento Jurídico <strong>não é obrigatório</strong> para este tipo.
+                É exigido para: Geração Compartilhada, Autoconsumo Remoto e EMUC (quando há solidariedade entre UCs distintas).
+                Altere o Tipo de Caracterização no formulário (seção Cliente) se necessário.
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+                ⚠️ Projeto <strong>{fd.tipoCaracterizacao}</strong> — documento obrigatório.
+                Preencha os dados dos cessionários. <strong>Firmas devem ser reconhecidas em cartório.</strong>
+                Verificar com a CEEE se instrumento particular é aceito.
+              </div>
+            )}
             <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
               {gerarTextoInstrumentoJuridico(fd, calc)}
             </pre>
