@@ -6,8 +6,7 @@
 
 import React from 'react';
 import type { FormData, Calculos, DocsGerados, Toast } from '../../types';
-import { makePDF, pdfHeader, pdfFooter } from '../../helpers/pdf';
-import { makeFilename } from '../../helpers/filename';
+import { exportarPendenciasPDFStandalone, exportarPendenciasWord } from '../../helpers/export';
 
 interface ResumoTabProps {
   fd: FormData;
@@ -103,56 +102,12 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
   ];
 
   const exportPendencias = () => {
-    const doc = makePDF('p', 'a4');
-    const W = doc.internal.pageSize.getWidth();
-    const H = doc.internal.pageSize.getHeight();
-    pdfHeader(doc, fd);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO DE PENDÊNCIAS — PROTOCOLO CEEE', W / 2, 35, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Cliente: ${fd.nomeCliente || '—'} | UC: ${fd.codigoUC || '—'} | Sistema: ${calc.kWp}kWp`, W / 2, 43, { align: 'center' });
-
-    let y = 54;
-    const sect = (title: string) => {
-      y += 4;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setFillColor(120, 184, 58);
-      doc.rect(14, y - 5, W - 28, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.text(title, 16, y);
-      doc.setTextColor(30, 30, 30);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      y += 8;
-    };
-    const item = (id: string, dname: string, done: boolean, como: string) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${id} — ${dname}`, 14, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal');
-      if (done) doc.setTextColor(34, 139, 34); else doc.setTextColor(180, 100, 0);
-      doc.text(done ? 'GERADO' : 'PENDENTE', 14, y);
-      doc.setTextColor(30, 30, 30);
-      if (!done) { doc.setTextColor(80, 80, 80); doc.text(`  Como obter: ${como}`, 14, y + 5); y += 5; }
-      y += 9;
-      if (y > H - 20) { doc.addPage(); pdfHeader(doc, fd); y = 35; }
-    };
-
-    sect('GRUPO A — DOCUMENTOS DO CLIENTE');
-    groupA.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
-    sect('GRUPO B — DOCUMENTOS TÉCNICOS');
-    groupB.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
-
-    y += 4;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Dúvidas? Entre em contato com a Instalight.', 14, y);
-    pdfFooter(doc, fd, 1, 1);
-    doc.save(makeFilename('pendencias', fd));
-    setToast({ message: 'Relatório de pendências exportado!', type: 'success' });
+    exportarPendenciasPDFStandalone(fd, calc, docsGerados);
+    setToast({ message: 'Relatório de pendências (PDF) exportado!', type: 'success' });
+  };
+  const exportPendenciasWordBtn = async () => {
+    await exportarPendenciasWord(fd, calc, docsGerados);
+    setToast({ message: 'Relatório de pendências (Word) exportado!', type: 'success' });
   };
 
   return (
@@ -163,12 +118,20 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
           <h2 className="font-semibold text-slate-800">Resumo do Projeto + Checklist de Protocolo</h2>
           <p className="text-xs text-slate-500">Acompanhe o status de todos os documentos necessários</p>
         </div>
-        <button
-          onClick={exportPendencias}
-          className="px-4 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
-        >
-          📄 Gerar PDF de Pendências
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={exportPendencias}
+            className="px-4 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+          >
+            📄 PDF de Pendências
+          </button>
+          <button
+            onClick={exportPendenciasWordBtn}
+            className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+          >
+            Word
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-4 space-y-6">

@@ -505,7 +505,7 @@ Disjuntor de Proteção CC (antes do inversor):
 • Número de pólos: 2 (bipolar CC)
 • Tensão nominal CC: ${calc.vocMax} V
 • Corrente nominal selecionada: ${djCC} A (dimensionamento: ${calc.iDjCCMin} A = Icc × 1,25)
-  ${num(djCC) >= calc.iDjCCMin ? '✔ atende' : '⚠ verificar — disjuntor subdimencionado'}
+  ${num(djCC) >= calc.iDjCCMin ? '✔ atende' : '⚠ verificar — disjuntor subdimensionado'}
 • Capacidade máxima de interrupção: mínimo 5 kA
 • Curva de atuação: C
 

@@ -14,6 +14,8 @@ import type { FormData } from '../src/types';
 import {
   getBlobProcuracao, getBlobFormulario, getBlobPendencias,
   getBlobMemorial, getBlobListaRateio, getBlobInstrumento,
+  getDocxProcuracao, getDocxFormulario, getDocxPendencias,
+  getDocxMemorial, getDocxListaRateio, getDocxInstrumento,
 } from '../src/helpers/export';
 import { buildMemorialTemplate, aplicarTextosBasicos } from '../src/helpers/memorial';
 
@@ -143,4 +145,16 @@ describe('Renderizadores de PDF — smoke', () => {
     expect(isBlob(getBlobMemorial(amp, ac, texto).blob)).toBe(true);
     expect(isBlob(getBlobPendencias(amp, ac, DOCS).blob)).toBe(true);
   });
+});
+
+describe('Renderizadores de Word (.docx) — smoke', () => {
+  const memText = aplicarTextosBasicos(buildMemorialTemplate(FD, calc), FD, calc);
+  const isDocx = (b: Blob) => b instanceof Blob && b.size > 1500;
+
+  it('Memorial → DOCX', async () => { expect(isDocx((await getDocxMemorial(FD, calc, memText)).blob)).toBe(true); });
+  it('Procuração → DOCX', async () => { expect(isDocx((await getDocxProcuracao(FD, calc)).blob)).toBe(true); });
+  it('Formulário → DOCX', async () => { expect(isDocx((await getDocxFormulario(FD, calc)).blob)).toBe(true); });
+  it('Pendências → DOCX', async () => { expect(isDocx((await getDocxPendencias(FD, calc, DOCS)).blob)).toBe(true); });
+  it('Lista de Rateio → DOCX', async () => { expect(isDocx((await getDocxListaRateio(FD, calc)).blob)).toBe(true); });
+  it('Instrumento Jurídico → DOCX', async () => { expect(isDocx((await getDocxInstrumento(FD, calc)).blob)).toBe(true); });
 });

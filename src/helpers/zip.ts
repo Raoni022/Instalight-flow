@@ -15,6 +15,12 @@ import {
   getBlobMemorial,
   getBlobListaRateio,
   getBlobInstrumento,
+  getDocxProcuracao,
+  getDocxFormulario,
+  getDocxPendencias,
+  getDocxMemorial,
+  getDocxListaRateio,
+  getDocxInstrumento,
 } from './export';
 
 /**
@@ -47,35 +53,30 @@ export async function exportarDossieZip(
     zip.file(makeFilename('prancha', fd, 'pdf'), pranchaPdfBlob);
   }
 
-  // ── Grupo B: Memorial técnico-descritivo ─────────────────────
-  const { blob: memBlob, filename: memName } = getBlobMemorial(fd, calc, memorialIA);
-  zip.file(memName, memBlob);
+  // ── Documentos em PDF (pasta) e Word editável (pasta) ────────
+  // Cada documento entra como PDF (protocolo) e .docx (projetista editar).
+  const pdfDir = zip.folder('PDF');
+  const wordDir = zip.folder('Word (editavel)');
+  const addDoc = (pdf: { blob: Blob; filename: string }, docx: { blob: Blob; filename: string }) => {
+    (pdfDir ?? zip).file(pdf.filename, pdf.blob);
+    (wordDir ?? zip).file(docx.filename, docx.blob);
+  };
 
-  // ── Grupo A: Procuração específica ───────────────────────────
-  const { blob: procBlob, filename: procName } = getBlobProcuracao(fd, calc);
-  zip.file(procName, procBlob);
+  addDoc(getBlobMemorial(fd, calc, memorialIA), await getDocxMemorial(fd, calc, memorialIA));
+  addDoc(getBlobProcuracao(fd, calc), await getDocxProcuracao(fd, calc));
+  addDoc(getBlobFormulario(fd, calc), await getDocxFormulario(fd, calc));
 
-  // ── Grupo A: Formulário de acesso CEEE ───────────────────────
-  const { blob: formBlob, filename: formName } = getBlobFormulario(fd, calc);
-  zip.file(formName, formBlob);
-
-  // ── Grupo D: Lista de Rateio + Instrumento Jurídico (condicional) ──
-  // Inclui quando o tipo de caracterização exige rateio, ou quando o
-  // usuário já gerou os documentos nesta sessão.
+  // Grupo D — condicional (caracterização exige rateio ou já gerados)
   const exigeRateio = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC']
     .includes(fd.tipoCaracterizacao);
   if (exigeRateio || docsGerados.listaRateio) {
-    const { blob, filename } = getBlobListaRateio(fd, calc);
-    zip.file(filename, blob);
+    addDoc(getBlobListaRateio(fd, calc), await getDocxListaRateio(fd, calc));
   }
   if (exigeRateio || docsGerados.instrumentoJuridico) {
-    const { blob, filename } = getBlobInstrumento(fd, calc);
-    zip.file(filename, blob);
+    addDoc(getBlobInstrumento(fd, calc), await getDocxInstrumento(fd, calc));
   }
 
-  // ── Relatório de pendências ───────────────────────────────────
-  const { blob: pendBlob, filename: pendName } = getBlobPendencias(fd, calc, docsGerados);
-  zip.file(pendName, pendBlob);
+  addDoc(getBlobPendencias(fd, calc, docsGerados), await getDocxPendencias(fd, calc, docsGerados));
 
   // ── Gerar e disparar download do ZIP ─────────────────────────
   const content = await zip.generateAsync({ type: 'blob' });

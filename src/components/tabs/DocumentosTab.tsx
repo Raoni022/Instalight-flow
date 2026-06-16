@@ -8,15 +8,18 @@
 import React, { useState } from 'react';
 import type { FormData, Calculos, Toast, DocsGerados } from '../../types';
 import { callAPI } from '../../helpers/api';
-import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from '../../helpers/pdf';
-import { makeFilename } from '../../helpers/filename';
 import {
   gerarTextoProcuracao,
+  exportarProcuracaoTextoPDF,
+  exportarProcuracaoTextoWord,
   exportarFormularioPDFStandalone,
+  exportarFormularioWord,
   gerarTextoListaRateio,
   exportarListaRateioPDFStandalone,
+  exportarListaRateioWord,
   gerarTextoInstrumentoJuridico,
   exportarInstrumentoJuridicoPDFStandalone,
+  exportarInstrumentoJuridicoWord,
 } from '../../helpers/export';
 
 interface DocumentosTabProps {
@@ -73,21 +76,8 @@ export const DocumentosTab: React.FC<DocumentosTabProps> = ({
     }
   };
 
-  const exportProcuracaoPDF = () => {
-    const doc = makePDF('p', 'a4');
-    pdfHeader(doc, fd);
-    const W = doc.internal.pageSize.getWidth();
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PROCURAÇÃO ESPECÍFICA', W / 2, 35, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Art. 9° — REN ANEEL n° 1.000/2021', W / 2, 42, { align: 'center' });
-    addTextBlock(doc, procuracao, 14, 14, 52, 5.5);
-    pdfRTWarning(doc);
-    pdfFooter(doc, fd, 1, 1);
-    doc.save(makeFilename('procuracao', fd));
-  };
+  const exportProcuracaoPDF = () => exportarProcuracaoTextoPDF(fd, calc, procuracao);
+  const exportProcuracaoWord = () => exportarProcuracaoTextoWord(fd, calc, procuracao);
 
   // Usa a função standalone de export.ts — fonte única de verdade, sempre atualizada.
   // (A função local anterior estava desatualizada: faltavam numContaContrato, tipoInstalacao.)
@@ -205,6 +195,12 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                     >
                       Exportar PDF
                     </button>
+                    <button
+                      onClick={exportProcuracaoWord}
+                      className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                    >
+                      Exportar Word
+                    </button>
                   </>
                 )}
               </div>
@@ -257,12 +253,20 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 <h3 className="font-semibold text-slate-800">D1 — Lista de Rateio dos Créditos de Energia</h3>
                 <p className="text-xs text-slate-500">Lei Federal n° 14.300/2022, Art. 27</p>
               </div>
-              <button
-                onClick={() => { exportarListaRateioPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, listaRateio: true })); }}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
-              >
-                Exportar PDF
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { exportarListaRateioPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, listaRateio: true })); }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => { exportarListaRateioWord(fd, calc); setDocsGerados((p) => ({ ...p, listaRateio: true })); }}
+                  className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  Word
+                </button>
+              </div>
             </div>
             {!precisaRateio ? (
               <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3 text-xs text-slate-500">
@@ -290,12 +294,20 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 <h3 className="font-semibold text-slate-800">D2 — Instrumento Jurídico de Solidariedade</h3>
                 <p className="text-xs text-slate-500">Cessão de créditos GD — Lei 14.300/2022, Art. 27</p>
               </div>
-              <button
-                onClick={() => { exportarInstrumentoJuridicoPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, instrumentoJuridico: true })); }}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
-              >
-                Exportar PDF
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { exportarInstrumentoJuridicoPDFStandalone(fd, calc); setDocsGerados((p) => ({ ...p, instrumentoJuridico: true })); }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => { exportarInstrumentoJuridicoWord(fd, calc); setDocsGerados((p) => ({ ...p, instrumentoJuridico: true })); }}
+                  className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  Word
+                </button>
+              </div>
             </div>
             {!precisaRateio ? (
               <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3 text-xs text-slate-500">
@@ -324,12 +336,20 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 <h3 className="font-semibold text-slate-800">Formulário de Solicitação de Acesso CEEE</h3>
                 <p className="text-xs text-slate-500">Preenchido automaticamente com os dados do formulário</p>
               </div>
-              <button
-                onClick={exportFormularioPDF}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
-              >
-                Exportar PDF
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportFormularioPDF}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-500 text-white hover:bg-brand-600"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => { exportarFormularioWord(fd, calc); setDocsGerados((p) => ({ ...p, formularioCEEE: true })); }}
+                  className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  Word
+                </button>
+              </div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
               ⚠️ Modelo baseado na <strong>NT.00020.EQTL-06 (rev. dez/2025)</strong>.

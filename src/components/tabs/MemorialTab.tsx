@@ -14,6 +14,7 @@ import { makePDF } from '../../helpers/pdf';
 import { makeFilename } from '../../helpers/filename';
 import { buildMemorialTemplate, aplicarTextosBasicos } from '../../helpers/memorial';
 import { buildMemorialPDFPro } from '../../helpers/memorialPDF';
+import { exportarMemorialWord } from '../../helpers/export';
 
 interface MemorialTabProps {
   fd: FormData;
@@ -150,12 +151,20 @@ ${template}`;
             )}
           </button>
           {memorialIA && (
-            <button
-              onClick={exportPDF}
-              className="px-3 py-1.5 text-xs font-medium rounded border border-brand-300 text-brand-600 hover:bg-brand-50"
-            >
-              Exportar PDF
-            </button>
+            <>
+              <button
+                onClick={exportPDF}
+                className="px-3 py-1.5 text-xs font-medium rounded border border-brand-300 text-brand-600 hover:bg-brand-50"
+              >
+                Exportar PDF
+              </button>
+              <button
+                onClick={() => exportarMemorialWord(fd, calc, memorialIA)}
+                className="px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+              >
+                Exportar Word
+              </button>
+            </>
           )}
         </div>
       </div>

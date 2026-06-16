@@ -1,646 +1,427 @@
 /**
- * pdfKit.ts — Toolkit de PDF profissional compartilhado
+ * pdfKit.ts — Renderizador PDF a partir do modelo de blocos (docModel)
  *
- * Fonte única de primitivos visuais para TODOS os documentos exportados.
- * Substitui o despejo de texto monoespaçado (addTextBlock) por blocos
- * estruturados: capa, barras de seção, parágrafos, listas, tabelas reais
- * (células multilinha + colunas auto-ajustadas), blocos de assinatura.
- *
- * Arquitetura:
- *   PdfFlow      — gerencia cursor Y + quebra automática de página (header/footer)
- *   coverPage()  — capa profissional parametrizável
- *   table()      — tabela com células multilinha e largura de coluna auto-ajustada
- *   <primitivos> — sectionBar, paragraph, bullet, checkbox, kvLine, infoBox, etc.
+ * Estilo "memorial técnico": fundo branco, títulos pretos com acento verde
+ * DISCRETO (linha fina), tabelas simples cinza-claro/branco, sem faixas ou
+ * bordas verdes preenchidas. renderSpecToPdf(doc, spec) é o ponto de entrada.
  */
 
 import jsPDF from 'jspdf';
+import type { Block, DocSpec, CoverSpec, CoverInfoBox } from './docModel';
 
-// ── Paleta (fonte única) ──────────────────────────────────────────────────────
+// ── Paleta (discreta) ─────────────────────────────────────────────────────────
 export type RGB = [number, number, number];
-
 export const C = {
-  green:      [120, 184,  58] as RGB,  // verde marca
-  greenDark:  [ 70, 140,  20] as RGB,  // verde escuro (subseções)
-  greenBg:    [240, 248, 230] as RGB,  // verde claro (fundo)
-  slate:      [ 71,  85, 105] as RGB,  // slate (rótulos)
-  black:      [ 30,  30,  30] as RGB,  // preto suave (corpo)
+  green:      [ 90, 150,  40] as RGB,  // acento (linhas/títulos discretos)
+  greenDark:  [ 55, 100,  25] as RGB,
+  slate:      [ 70,  80,  95] as RGB,
+  black:      [ 25,  25,  25] as RGB,
   white:      [255, 255, 255] as RGB,
-  grayBg:     [248, 250, 252] as RGB,  // cinza claro (linha par)
-  grayBg2:    [240, 243, 246] as RGB,  // cinza médio (info-box)
-  grayBorder: [200, 210, 215] as RGB,  // cinza borda
-  amber:      [180, 120,   0] as RGB,  // âmbar (aviso)
-  ok:         [ 20, 120,  20] as RGB,  // verde ok
-  red:        [200,  30,  30] as RGB,  // vermelho (warning RT)
+  headerGray: [238, 238, 238] as RGB,  // cabeçalho de tabela / faixa caps
+  rowGray:    [248, 249, 250] as RGB,  // linha alternada
+  grayBorder: [200, 205, 210] as RGB,
+  amberDark:  [140,  90,   0] as RGB,
+  ok:         [ 30, 110,  30] as RGB,
+  redDark:    [170,  35,  35] as RGB,
 };
+export const setFill = (d: jsPDF, c: RGB) => d.setFillColor(c[0], c[1], c[2]);
+export const setDraw = (d: jsPDF, c: RGB) => d.setDrawColor(c[0], c[1], c[2]);
+export const setText = (d: jsPDF, c: RGB) => d.setTextColor(c[0], c[1], c[2]);
 
-export const setFill = (doc: jsPDF, c: RGB) => doc.setFillColor(c[0], c[1], c[2]);
-export const setDraw = (doc: jsPDF, c: RGB) => doc.setDrawColor(c[0], c[1], c[2]);
-export const setText = (doc: jsPDF, c: RGB) => doc.setTextColor(c[0], c[1], c[2]);
-
-// ── Margens padrão ────────────────────────────────────────────────────────────
 export interface Margins { l: number; r: number; t: number; b: number; }
-const DEFAULT_MARGINS: Margins = { l: 18, r: 18, t: 26, b: 22 };
+const M: Margins = { l: 18, r: 18, t: 24, b: 18 };
 
-// ── Gerenciador de fluxo (cursor + quebra de página) ──────────────────────────
-export interface FlowChrome {
-  /** Desenha o cabeçalho da página e retorna o Y inicial do conteúdo. */
-  header?: (doc: jsPDF, pageNum: number) => number;
-  /** Desenha o rodapé da página. */
-  footer?: (doc: jsPDF, pageNum: number) => void;
-}
+// ── Fluxo (cursor + quebra de página) ─────────────────────────────────────────
+interface Chrome { header?: (d: jsPDF, p: number) => number; footer?: (d: jsPDF, p: number) => void; }
 
 export class PdfFlow {
-  doc: jsPDF;
-  y: number;
-  pageNum: number;
-  readonly W: number;
-  readonly H: number;
-  readonly m: Margins;
-  private chrome: FlowChrome;
-
-  constructor(doc: jsPDF, chrome: FlowChrome = {}, margins: Partial<Margins> = {}) {
+  doc: jsPDF; y: number; pageNum: number;
+  readonly W: number; readonly H: number; readonly m = M;
+  private chrome: Chrome;
+  constructor(doc: jsPDF, chrome: Chrome = {}) {
     this.doc = doc;
-    this.m = { ...DEFAULT_MARGINS, ...margins };
     this.W = doc.internal.pageSize.getWidth();
     this.H = doc.internal.pageSize.getHeight();
     this.chrome = chrome;
     this.pageNum = 1;
-    this.y = chrome.header ? chrome.header(doc, 1) : this.m.t;
+    this.y = chrome.header ? chrome.header(doc, 1) : M.t;
   }
-
-  /** Largura útil do conteúdo. */
-  get cw(): number { return this.W - this.m.l - this.m.r; }
-
-  /** Limite inferior do conteúdo (acima do rodapé). */
-  get bottom(): number { return this.H - this.m.b - 4; }
-
-  /** Avança o cursor. */
+  get cw(): number { return this.W - M.l - M.r; }
+  get bottom(): number { return this.H - M.b - 4; }
   gap(n: number): void { this.y += n; }
-
-  /** Garante espaço; quebra a página se necessário. */
-  ensure(need: number): void {
-    if (this.y + need > this.bottom) this.newPage();
-  }
-
-  /** Quebra para nova página (aplica rodapé atual + cabeçalho novo). */
+  ensure(need: number): void { if (this.y + need > this.bottom) this.newPage(); }
   newPage(): void {
     if (this.chrome.footer) this.chrome.footer(this.doc, this.pageNum);
     this.doc.addPage();
     this.pageNum += 1;
-    this.y = this.chrome.header ? this.chrome.header(this.doc, this.pageNum) : this.m.t;
+    this.y = this.chrome.header ? this.chrome.header(this.doc, this.pageNum) : M.t;
   }
-
-  /** Finaliza: aplica o rodapé na última página. */
-  finish(): void {
-    if (this.chrome.footer) this.chrome.footer(this.doc, this.pageNum);
-  }
+  finish(): void { if (this.chrome.footer) this.chrome.footer(this.doc, this.pageNum); }
 }
 
-// ── Chrome de página (cabeçalho/rodapé verde padrão) ──────────────────────────
-export interface ChromeOpts {
-  title: string;            // título no cabeçalho da página
-  subtitle?: string;        // subtítulo centralizado
-  company?: string;         // empresa no rodapé
-}
-
-export function greenChrome(opts: ChromeOpts, margins: Partial<Margins> = {}): FlowChrome {
-  const m = { ...DEFAULT_MARGINS, ...margins };
+// ── Chrome minimalista (sem faixa colorida) ───────────────────────────────────
+function minimalChrome(opts: { title: string; subtitle?: string; company?: string }): Chrome {
   return {
     header: (doc, pageNum) => {
       const W = doc.internal.pageSize.getWidth();
-      setFill(doc, C.green); doc.rect(0, 0, W, 16, 'F');
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-      setText(doc, C.white);
-      doc.text(opts.title, m.l, 6);
-      doc.text(`Pág. ${pageNum}`, W - m.r, 6, { align: 'right' });
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+      setText(doc, C.slate);
+      doc.text(opts.title.toUpperCase(), M.l, 12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Pág. ${pageNum}`, W - M.r, 12, { align: 'right' });
       if (opts.subtitle) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-        doc.text(opts.subtitle, W / 2, 12, { align: 'center' });
+        doc.setFontSize(6.8); setText(doc, C.slate);
+        doc.text(opts.subtitle, M.l, 16);
       }
+      setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
+      doc.line(M.l, 18, W - M.r, 18);
+      // acento verde discreto à esquerda
+      setDraw(doc, C.green); doc.setLineWidth(0.8);
+      doc.line(M.l, 18, M.l + 16, 18);
+      doc.setLineWidth(0.2);
       setText(doc, C.black);
-      return m.t;
+      return M.t;
     },
     footer: (doc, pageNum) => {
       const W = doc.internal.pageSize.getWidth();
       const H = doc.internal.pageSize.getHeight();
-      const y = H - m.b + 4;
-      setDraw(doc, C.grayBorder); doc.setLineWidth(0.3);
-      doc.line(m.l, y, W - m.r, y);
-      doc.setLineWidth(0.1);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+      const y = H - M.b + 6;
+      setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
+      doc.line(M.l, y, W - M.r, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8);
       setText(doc, C.slate);
-      doc.text(opts.company || 'Instalight Energia Solar', m.l, y + 5);
-      doc.text(`Página ${pageNum}`, W - m.r, y + 5, { align: 'right' });
+      doc.text(opts.company || 'Instalight Energia Solar', M.l, y + 4);
+      doc.text(`Página ${pageNum}`, W - M.r, y + 4, { align: 'right' });
       setText(doc, C.black);
     },
   };
 }
 
-/** Banner vermelho de aviso de assinatura RT (última página). */
-export function rtWarningBanner(doc: jsPDF, flow: PdfFlow): void {
+// ── Aviso RT (caixa de borda, sem preenchimento chapado) ──────────────────────
+function rtWarning(doc: jsPDF, flow: PdfFlow): void {
   const W = flow.W, H = flow.H;
-  const warY = H - flow.m.b - 6;
-  setFill(doc, C.red);
-  doc.rect(flow.m.l, warY, flow.cw, 7, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-  setText(doc, C.white);
+  const y = H - M.b - 7;
+  setDraw(doc, C.redDark); doc.setLineWidth(0.4);
+  doc.rect(M.l, y, flow.cw, 7);
+  doc.setLineWidth(0.2);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8);
+  setText(doc, C.redDark);
   doc.text(
     'DOCUMENTO SEM VALIDADE JURÍDICA — ASSINATURA DO RESPONSÁVEL TÉCNICO HABILITADO OBRIGATÓRIA',
-    W / 2, warY + 4.5, { align: 'center' },
+    W / 2, y + 4.6, { align: 'center' },
   );
   setText(doc, C.black);
 }
 
-// ── Capa profissional ─────────────────────────────────────────────────────────
-export interface CoverInfoBox { title: string; rows: [string, string][]; }
-export interface CoverSpec {
-  brandTitle?: string;
-  brandSubtitle?: string;
-  docTitle: string;
-  docSubtitle?: string;
-  highlight?: { bannerTitle: string; bigLine: string; midLine?: string; smallLine?: string };
-  infoBoxes?: CoverInfoBox[];
-  footerNote?: string;
-}
-
-const COVER_ROW_H = 6.5;
-
-function coverInfoBox(doc: jsPDF, box: CoverInfoBox, BX: number, BW: number, W: number, y: number): number {
-  setFill(doc, C.green);
-  doc.rect(BX, y, BW, 7.5, 'F');
+// ── Capa clean ────────────────────────────────────────────────────────────────
+const CRH = 6.5;
+function coverInfoBox(doc: jsPDF, box: CoverInfoBox, BX: number, BW: number, y: number): number {
+  // Cabeçalho (cinza-claro, texto preto)
+  setFill(doc, C.headerGray); setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
+  doc.rect(BX, y, BW, 7, 'FD');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-  setText(doc, C.white);
-  doc.text(box.title, W / 2, y + 5, { align: 'center' });
   setText(doc, C.black);
-  y += 7.5;
-
-  const bodyH = box.rows.length * COVER_ROW_H;
-  setDraw(doc, C.grayBorder); setFill(doc, C.grayBg);
-  doc.rect(BX, y, BW, bodyH, 'FD');
+  doc.text(box.title, BX + 3, y + 4.8);
+  y += 7;
+  const bodyH = box.rows.length * CRH;
+  setDraw(doc, C.grayBorder); doc.rect(BX, y, BW, bodyH);
   box.rows.forEach((row, i) => {
-    if (i % 2 === 0) { setFill(doc, C.grayBg2); doc.rect(BX, y + i * COVER_ROW_H, BW, COVER_ROW_H, 'F'); }
-    if (i > 0) {
-      setDraw(doc, C.grayBorder); doc.setLineWidth(0.1);
-      doc.line(BX, y + i * COVER_ROW_H, BX + BW, y + i * COVER_ROW_H);
-      doc.setLineWidth(0.2);
-    }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-    setText(doc, C.slate); doc.text(row[0] + ':', BX + 3, y + i * COVER_ROW_H + 4.5);
-    doc.setFont('helvetica', 'normal');
-    setText(doc, C.black);
-    doc.text(doc.splitTextToSize(row[1], BW - 45)[0] ?? '', BX + 42, y + i * COVER_ROW_H + 4.5);
+    const ry = y + i * CRH;
+    if (i > 0) { setDraw(doc, C.grayBorder); doc.setLineWidth(0.1); doc.line(BX, ry, BX + BW, ry); doc.setLineWidth(0.2); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); setText(doc, C.slate);
+    doc.text(row[0] + ':', BX + 3, ry + 4.5);
+    doc.setFont('helvetica', 'normal'); setText(doc, C.black);
+    doc.text(doc.splitTextToSize(row[1], BW - 47)[0] ?? '', BX + 45, ry + 4.5);
   });
   return y + bodyH;
 }
 
-/** Desenha a capa (página 1). Não adiciona página — usa a atual. */
 export function coverPage(doc: jsPDF, spec: CoverSpec): void {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
+  const BX = M.l, BW = W - M.l - M.r;
+  let y = 30;
 
-  // Faixa de marca (topo)
-  setFill(doc, C.green); doc.rect(0, 0, W, 16, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-  setText(doc, C.white);
-  doc.text(spec.brandTitle || 'INSTALIGHT ENERGIA SOLAR', W / 2, 7, { align: 'center' });
+  // Marca discreta
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  setText(doc, C.greenDark);
+  doc.text(spec.brandTitle || 'INSTALIGHT ENERGIA SOLAR', W / 2, y, { align: 'center' });
   if (spec.brandSubtitle) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
-    doc.text(spec.brandSubtitle, W / 2, 12.5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); setText(doc, C.slate);
+    doc.text(spec.brandSubtitle, W / 2, y + 5, { align: 'center' });
   }
   setText(doc, C.black);
-
-  // Faixa de aviso (base)
-  setFill(doc, C.green); doc.rect(0, H - 12, W, 12, 'F');
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-  setText(doc, C.white);
-  doc.text(
-    'DOCUMENTO SEM VALIDADE JURÍDICA — ASSINATURA DO RT HABILITADO OBRIGATÓRIA',
-    W / 2, H - 4.5, { align: 'center' },
-  );
-  setText(doc, C.black);
-
-  // Bordas laterais verdes
-  setFill(doc, C.green);
-  doc.rect(0, 16, 5, H - 28, 'F');
-  doc.rect(W - 5, 16, 5, H - 28, 'F');
-
-  const BX = 12, BW = W - 24;
-  let y = 32;
+  y += 26;
 
   // Título
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
-  setText(doc, C.greenDark);
-  doc.text(doc.splitTextToSize(spec.docTitle, BW), W / 2, y, { align: 'center' });
-  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
+  setText(doc, C.black);
+  doc.splitTextToSize(spec.docTitle, BW).forEach((l: string) => { doc.text(l, W / 2, y, { align: 'center' }); y += 8.5; });
+  // Acento verde discreto (uma linha curta centralizada)
+  setDraw(doc, C.green); doc.setLineWidth(1);
+  doc.line(W / 2 - 22, y - 1, W / 2 + 22, y - 1);
+  doc.setLineWidth(0.2);
+  y += 5;
   if (spec.docSubtitle) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    setText(doc, C.slate);
-    doc.text(spec.docSubtitle, W / 2, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); setText(doc, C.slate);
+    doc.splitTextToSize(spec.docSubtitle, BW).forEach((l: string) => { doc.text(l, W / 2, y, { align: 'center' }); y += 5; });
     setText(doc, C.black);
-    y += 6;
   }
+  y += 8;
 
-  // Box de destaque
+  // Destaque (box bordado, sem preenchimento colorido)
   if (spec.highlight) {
-    y += 6;
-    setFill(doc, C.green);
-    doc.rect(BX, y, BW, 7.5, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-    setText(doc, C.white);
-    doc.text(spec.highlight.bannerTitle, W / 2, y + 5, { align: 'center' });
-    setText(doc, C.black);
-    y += 7.5;
-
-    const boxH = 30;
-    setFill(doc, C.greenBg); setDraw(doc, C.green);
-    doc.rect(BX, y, BW, boxH, 'FD');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-    setText(doc, C.greenDark);
-    doc.text(spec.highlight.bigLine, W / 2, y + 10, { align: 'center' });
+    const boxH = 32;
+    setDraw(doc, C.grayBorder); doc.setLineWidth(0.4); doc.rect(BX, y, BW, boxH); doc.setLineWidth(0.2);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); setText(doc, C.slate);
+    doc.text(spec.highlight.bannerTitle, W / 2, y + 7, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); setText(doc, C.black);
+    doc.text(spec.highlight.bigLine, W / 2, y + 17, { align: 'center' });
     if (spec.highlight.midLine) {
-      doc.setFontSize(10); setText(doc, C.black);
-      doc.text(spec.highlight.midLine, W / 2, y + 19, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); setText(doc, C.black);
+      doc.text(spec.highlight.midLine, W / 2, y + 24, { align: 'center' });
     }
     if (spec.highlight.smallLine) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-      setText(doc, C.slate);
-      doc.text(spec.highlight.smallLine, W / 2, y + 27, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); setText(doc, C.slate);
+      doc.text(spec.highlight.smallLine, W / 2, y + 29.5, { align: 'center' });
       setText(doc, C.black);
     }
-    y += boxH;
+    y += boxH + 10;
   }
 
-  // Info-boxes
-  for (const box of spec.infoBoxes || []) {
-    y += 8;
-    y = coverInfoBox(doc, box, BX, BW, W, y);
-  }
+  for (const box of spec.infoBoxes || []) { y = coverInfoBox(doc, box, BX, BW, y); y += 8; }
 
-  // Nota de rodapé (data/local)
   if (spec.footerNote) {
-    y += 12;
-    doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
-    setText(doc, C.slate);
-    doc.text(spec.footerNote, W / 2, y, { align: 'center' });
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(9); setText(doc, C.slate);
+    doc.text(spec.footerNote, W / 2, Math.max(y, H - 30), { align: 'center' });
     setText(doc, C.black);
   }
 }
 
-// ── Bloco de título compacto (para documentos sem capa cheia) ─────────────────
-export function docTitle(flow: PdfFlow, title: string, subtitle?: string): void {
+// ── Título compacto (docs sem capa) ───────────────────────────────────────────
+function docTitle(flow: PdfFlow, title: string, subtitle?: string): void {
   const doc = flow.doc;
   flow.gap(2);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-  setText(doc, C.greenDark);
-  const lines = doc.splitTextToSize(title, flow.cw) as string[];
-  lines.forEach((l) => { doc.text(l, flow.W / 2, flow.y, { align: 'center' }); flow.y += 6.5; });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); setText(doc, C.black);
+  doc.splitTextToSize(title, flow.cw).forEach((l: string) => { doc.text(l, flow.W / 2, flow.y, { align: 'center' }); flow.y += 7; });
   if (subtitle) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    setText(doc, C.slate);
-    doc.text(subtitle, flow.W / 2, flow.y, { align: 'center' });
-    flow.y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); setText(doc, C.slate);
+    doc.text(subtitle, flow.W / 2, flow.y, { align: 'center' }); flow.y += 5;
   }
   setText(doc, C.black);
-  setDraw(doc, C.green); doc.setLineWidth(0.4);
-  doc.line(flow.m.l, flow.y, flow.W - flow.m.r, flow.y);
+  setDraw(doc, C.green); doc.setLineWidth(0.8);
+  doc.line(flow.W / 2 - 20, flow.y, flow.W / 2 + 20, flow.y);
   doc.setLineWidth(0.2);
-  flow.gap(5);
-}
-
-// ── Barras de seção ───────────────────────────────────────────────────────────
-export function sectionBar(flow: PdfFlow, title: string): void {
-  const doc = flow.doc;
-  flow.ensure(13);
-  flow.gap(2);
-  setFill(doc, C.green); setDraw(doc, C.green);
-  doc.rect(flow.m.l, flow.y - 5, flow.cw, 8.5, 'FD');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-  setText(doc, C.white);
-  doc.text(title, flow.m.l + 2, flow.y);
-  setText(doc, C.black);
-  flow.gap(8);
-}
-
-export function subSection(flow: PdfFlow, title: string): void {
-  const doc = flow.doc;
-  flow.ensure(10);
-  flow.gap(1);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-  setText(doc, C.greenDark);
-  doc.text(title, flow.m.l, flow.y);
-  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
   flow.gap(6);
 }
 
-export function capsHeader(flow: PdfFlow, title: string): void {
+// ── Primitivos de bloco ───────────────────────────────────────────────────────
+function bSection(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  flow.ensure(12);
-  flow.gap(2);
-  setFill(doc, C.grayBg); setDraw(doc, C.grayBorder);
-  doc.rect(flow.m.l, flow.y - 4.5, flow.cw, 7.5, 'FD');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  setText(doc, C.slate);
-  doc.text(title, flow.m.l + 2, flow.y);
-  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
-  flow.gap(7);
+  flow.ensure(12); flow.gap(3);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); setText(doc, C.black);
+  doc.text(title, M.l, flow.y);
+  flow.gap(1.5);
+  setDraw(doc, C.green); doc.setLineWidth(0.4); doc.line(M.l, flow.y, flow.W - M.r, flow.y); doc.setLineWidth(0.2);
+  setText(doc, C.black); flow.gap(4.5);
 }
-
-export function divider(flow: PdfFlow): void {
+function bSub(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  flow.ensure(4);
-  setDraw(doc, C.green); doc.setLineWidth(0.25);
-  doc.line(flow.m.l, flow.y, flow.W - flow.m.r, flow.y);
-  doc.setLineWidth(0.2); setDraw(doc, C.grayBorder);
-  flow.gap(4);
-}
-
-// ── Parágrafos e listas ───────────────────────────────────────────────────────
-export function paragraph(flow: PdfFlow, text: string, fontSize = 9, lineH = 5.5): void {
-  const doc = flow.doc;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(fontSize);
-  setText(doc, C.black);
-  const wrapped = doc.splitTextToSize(text, flow.cw) as string[];
-  wrapped.forEach((line) => {
-    flow.ensure(lineH);
-    doc.text(line, flow.m.l, flow.y);
-    flow.y += lineH;
-  });
-}
-
-export function bullet(flow: PdfFlow, text: string): void {
-  const doc = flow.doc;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  setText(doc, C.black);
-  const wrapped = doc.splitTextToSize(text, flow.cw - 6) as string[];
-  wrapped.forEach((line, i) => {
-    flow.ensure(5.5);
-    if (i === 0) doc.text('•', flow.m.l + 1, flow.y);
-    doc.text(line, flow.m.l + 5, flow.y);
-    flow.y += 5.5;
-  });
-}
-
-export function checkbox(flow: PdfFlow, text: string): void {
-  const doc = flow.doc;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-  setText(doc, C.black);
-  const wrapped = doc.splitTextToSize(text, flow.cw - 7) as string[];
-  wrapped.forEach((line, i) => {
-    flow.ensure(5);
-    if (i === 0) {
-      setDraw(doc, [110, 110, 110]); doc.setLineWidth(0.3);
-      doc.rect(flow.m.l, flow.y - 3.5, 3.5, 3.5);
-      doc.setLineWidth(0.2); setDraw(doc, C.grayBorder);
-    }
-    doc.text(line, flow.m.l + 5.5, flow.y);
-    flow.y += 5;
-  });
-}
-
-export function statusLine(flow: PdfFlow, text: string, ok: boolean): void {
-  const doc = flow.doc;
-  doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(8.5);
-  setText(doc, ok ? C.ok : C.amber);
-  const wrapped = doc.splitTextToSize((ok ? '[OK] ' : '[!] ') + text, flow.cw) as string[];
-  wrapped.forEach((line) => {
-    flow.ensure(5);
-    doc.text(line, flow.m.l, flow.y);
-    flow.y += 5;
-  });
+  flow.ensure(9); flow.gap(1.5);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); setText(doc, C.greenDark);
+  doc.splitTextToSize(title, flow.cw).forEach((l: string) => { doc.text(l, M.l, flow.y); flow.y += 5; });
   doc.setFont('helvetica', 'normal'); setText(doc, C.black);
 }
-
-export function formula(flow: PdfFlow, text: string): void {
+function bCaps(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  doc.setFont('courier', 'normal'); doc.setFontSize(8);
-  setText(doc, C.slate);
-  const wrapped = doc.splitTextToSize(text, flow.cw - 8) as string[];
-  wrapped.forEach((line) => {
-    flow.ensure(5);
-    doc.text(line, flow.m.l + 6, flow.y);
-    flow.y += 5;
+  flow.ensure(11); flow.gap(2);
+  setFill(doc, C.headerGray); setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
+  doc.rect(M.l, flow.y - 4.5, flow.cw, 7, 'FD');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); setText(doc, C.black);
+  doc.text(title, M.l + 2, flow.y);
+  doc.setFont('helvetica', 'normal'); flow.gap(7);
+}
+function bPara(flow: PdfFlow, text: string, size = 9, lh = 5): void {
+  const doc = flow.doc;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(size); setText(doc, C.black);
+  doc.splitTextToSize(text, flow.cw).forEach((l: string) => { flow.ensure(lh); doc.text(l, M.l, flow.y); flow.y += lh; });
+}
+function bBullet(flow: PdfFlow, text: string): void {
+  const doc = flow.doc;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); setText(doc, C.black);
+  doc.splitTextToSize(text, flow.cw - 6).forEach((l: string, i: number) => {
+    flow.ensure(5); if (i === 0) doc.text('•', M.l + 1, flow.y); doc.text(l, M.l + 5, flow.y); flow.y += 5;
   });
+}
+function bCheck(flow: PdfFlow, text: string): void {
+  const doc = flow.doc;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); setText(doc, C.black);
+  doc.splitTextToSize(text, flow.cw - 7).forEach((l: string, i: number) => {
+    flow.ensure(5);
+    if (i === 0) { setDraw(doc, C.slate); doc.setLineWidth(0.3); doc.rect(M.l, flow.y - 3.2, 3.2, 3.2); doc.setLineWidth(0.2); }
+    doc.text(l, M.l + 5.5, flow.y); flow.y += 5;
+  });
+}
+function bStatus(flow: PdfFlow, text: string, ok: boolean): void {
+  const doc = flow.doc;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); setText(doc, ok ? C.ok : C.amberDark);
+  doc.splitTextToSize((ok ? '[OK] ' : '[!] ') + text, flow.cw).forEach((l: string) => { flow.ensure(5); doc.text(l, M.l, flow.y); flow.y += 5; });
   doc.setFont('helvetica', 'normal'); setText(doc, C.black);
 }
-
-export function monoCentered(flow: PdfFlow, text: string): void {
+function bFormula(flow: PdfFlow, text: string): void {
   const doc = flow.doc;
-  flow.ensure(5);
-  doc.setFont('courier', 'normal'); doc.setFontSize(8);
-  setText(doc, C.slate);
+  doc.setFont('courier', 'normal'); doc.setFontSize(8); setText(doc, C.slate);
+  doc.splitTextToSize(text, flow.cw - 8).forEach((l: string) => { flow.ensure(5); doc.text(l, M.l + 6, flow.y); flow.y += 5; });
+  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
+}
+function bMono(flow: PdfFlow, text: string): void {
+  const doc = flow.doc;
+  flow.ensure(5); doc.setFont('courier', 'normal'); doc.setFontSize(8); setText(doc, C.slate);
   doc.text(text, flow.W / 2, flow.y, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); setText(doc, C.black); flow.y += 5;
+}
+function bKv(flow: PdfFlow, label: string, value: string): void {
+  const doc = flow.doc; const labelW = 62;
+  flow.ensure(8.5);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); setText(doc, C.slate);
+  doc.text(label + ':', M.l, flow.y);
   doc.setFont('helvetica', 'normal'); setText(doc, C.black);
-  flow.y += 5;
-}
-
-// ── Par rótulo:valor ──────────────────────────────────────────────────────────
-export function kvLine(flow: PdfFlow, label: string, value: string | undefined, labelW = 62): void {
-  const doc = flow.doc;
-  flow.ensure(9);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  setText(doc, C.slate);
-  doc.text(label + ':', flow.m.l, flow.y);
-  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
-  const val = doc.splitTextToSize(value || '—', flow.cw - labelW) as string[];
-  doc.text(val[0] ?? '—', flow.m.l + labelW, flow.y);
-  setDraw(doc, C.grayBorder); doc.setLineWidth(0.1);
-  doc.line(flow.m.l, flow.y + 2, flow.W - flow.m.r, flow.y + 2);
-  doc.setLineWidth(0.2);
-  flow.gap(7.5);
-}
-
-// ── Info-box (tabela rotulada com 2 colunas) ─────────────────────────────────
-export function infoBox(flow: PdfFlow, title: string, rows: [string, string][]): void {
-  const doc = flow.doc;
-  flow.ensure(7.5 + rows.length * COVER_ROW_H);
-  setFill(doc, C.green);
-  doc.rect(flow.m.l, flow.y, flow.cw, 7.5, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-  setText(doc, C.white);
-  doc.text(title, flow.W / 2, flow.y + 5, { align: 'center' });
-  setText(doc, C.black);
-  flow.y += 7.5;
-
-  const bodyH = rows.length * COVER_ROW_H;
-  setDraw(doc, C.grayBorder); setFill(doc, C.grayBg);
-  doc.rect(flow.m.l, flow.y, flow.cw, bodyH, 'FD');
-  rows.forEach((row, i) => {
-    const ry = flow.y + i * COVER_ROW_H;
-    if (i % 2 === 0) { setFill(doc, C.grayBg2); doc.rect(flow.m.l, ry, flow.cw, COVER_ROW_H, 'F'); }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-    setText(doc, C.slate); doc.text(row[0] + ':', flow.m.l + 3, ry + 4.5);
-    doc.setFont('helvetica', 'normal'); setText(doc, C.black);
-    doc.text(doc.splitTextToSize(row[1], flow.cw - 48)[0] ?? '', flow.m.l + 45, ry + 4.5);
-  });
-  flow.y += bodyH + 3;
-}
-
-// ── Bloco de assinatura ───────────────────────────────────────────────────────
-export interface SignOpts { role?: string; nome: string; docLabel?: string; docValue?: string; extraLine?: string; }
-export function signatureBlock(flow: PdfFlow, opts: SignOpts): void {
-  const doc = flow.doc;
-  flow.ensure(28);
-  flow.gap(4);
-  if (opts.role) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-    setText(doc, C.slate);
-    doc.text(opts.role, flow.m.l, flow.y);
-    setText(doc, C.black);
-    flow.gap(8);
-  } else {
-    flow.gap(4);
-  }
-  setDraw(doc, C.black); doc.setLineWidth(0.3);
-  doc.line(flow.m.l, flow.y, flow.m.l + 80, flow.y);
-  doc.setLineWidth(0.2);
-  flow.gap(4);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  setText(doc, C.black);
-  doc.text(opts.nome, flow.m.l, flow.y);
-  flow.gap(5);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-  setText(doc, C.slate);
-  if (opts.docLabel) { doc.text(`${opts.docLabel}: ${opts.docValue || '___'}`, flow.m.l, flow.y); flow.gap(4.5); }
-  if (opts.extraLine) { doc.text(opts.extraLine, flow.m.l, flow.y); flow.gap(4.5); }
-  setText(doc, C.black);
-  flow.gap(2);
-}
-
-// ── Item de checklist (relatório de pendências) ──────────────────────────────
-export function checklistItem(flow: PdfFlow, id: string, nome: string, feito: boolean, como: string): void {
-  const doc = flow.doc;
-  flow.ensure(16);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-  setText(doc, C.black);
-  const titulo = doc.splitTextToSize(`${id} — ${nome}`, flow.cw) as string[];
-  titulo.forEach((l) => { doc.text(l, flow.m.l, flow.y); flow.y += 5; });
-  doc.setFont('helvetica', 'normal');
-  setText(doc, feito ? C.ok : C.amber);
-  doc.text(feito ? '✔ GERADO' : '○ PENDENTE', flow.m.l, flow.y);
-  setText(doc, C.black);
-  if (!feito) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-    setText(doc, C.slate);
-    const comoW = doc.splitTextToSize(`Como obter: ${como}`, flow.cw - 4) as string[];
-    let yy = flow.y;
-    comoW.forEach((l, i) => { doc.text(l, flow.m.l + 4, yy + 5 + i * 4.5); });
-    flow.y = yy + 5 + comoW.length * 4.5;
-    setText(doc, C.black);
-  }
+  doc.text((doc.splitTextToSize(value || '—', flow.cw - labelW)[0] ?? '—'), M.l + labelW, flow.y);
+  setDraw(doc, C.grayBorder); doc.setLineWidth(0.1); doc.line(M.l, flow.y + 2, flow.W - M.r, flow.y + 2); doc.setLineWidth(0.2);
   flow.gap(7);
 }
-
-// ── Tabela com células multilinha + colunas auto-ajustadas ────────────────────
-export interface TableOpts {
-  fontSize?: number;
-  /** Alinhamento por coluna: 'left' (padrão) | 'center' | 'right'. */
-  align?: ('left' | 'center' | 'right')[];
-  /** Pesos relativos de largura por coluna; sobrepõe o auto-ajuste. */
-  weights?: number[];
+function bSigrule(flow: PdfFlow): void {
+  const doc = flow.doc; flow.ensure(8); flow.gap(3);
+  setDraw(doc, C.black); doc.setLineWidth(0.3); doc.line(M.l, flow.y, M.l + 85, flow.y); doc.setLineWidth(0.2);
+  flow.gap(4);
+}
+function bDivider(flow: PdfFlow): void {
+  const doc = flow.doc; flow.ensure(4);
+  setDraw(doc, C.grayBorder); doc.setLineWidth(0.2); doc.line(M.l, flow.y, flow.W - M.r, flow.y);
+  flow.gap(3);
+}
+function bNoteBox(flow: PdfFlow, title: string | undefined, lines: string[]): void {
+  const doc = flow.doc;
+  const h = 6 + lines.length * 4.5;
+  flow.ensure(h + 4); flow.gap(3);
+  setDraw(doc, C.amberDark); doc.setLineWidth(0.3); doc.rect(M.l, flow.y, flow.cw, h); doc.setLineWidth(0.2);
+  let yy = flow.y + 5;
+  if (title) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); setText(doc, C.amberDark); doc.text(title, M.l + 2, yy); yy += 5; }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); setText(doc, C.black);
+  lines.forEach((l) => { doc.text(doc.splitTextToSize(l, flow.cw - 4)[0] ?? '', M.l + 2, yy); yy += 4.5; });
+  setText(doc, C.black); flow.y += h + 3;
+}
+function bCheckitem(flow: PdfFlow, id: string, name: string, done: boolean, como: string): void {
+  const doc = flow.doc;
+  flow.ensure(15);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); setText(doc, C.black);
+  doc.splitTextToSize(`${id} — ${name}`, flow.cw).forEach((l: string) => { doc.text(l, M.l, flow.y); flow.y += 5; });
+  doc.setFont('helvetica', 'normal');
+  setText(doc, done ? C.ok : C.amberDark);
+  doc.text(done ? '[x] GERADO' : '[ ] PENDENTE', M.l, flow.y);
+  setText(doc, C.black);
+  if (!done) {
+    doc.setFontSize(8); setText(doc, C.slate);
+    const w = doc.splitTextToSize(`Como obter: ${como}`, flow.cw - 4);
+    let yy = flow.y;
+    w.forEach((l: string, i: number) => doc.text(l, M.l + 4, yy + 5 + i * 4.3));
+    flow.y = yy + 5 + w.length * 4.3;
+    setText(doc, C.black);
+  }
+  flow.gap(6);
 }
 
 const PAD_X = 1.6;
-
-/**
- * Renderiza uma tabela markdown (matriz de strings, 1ª linha = cabeçalho).
- * Células com texto longo quebram em múltiplas linhas (altura variável).
- * Larguras de coluna auto-ajustadas pelo conteúdo, normalizadas à largura útil.
- * Cabeçalho é repetido após quebra de página.
- */
-export function table(flow: PdfFlow, rows: string[][], opts: TableOpts = {}): void {
+function bTableTitle(flow: PdfFlow, title: string): void {
+  const doc = flow.doc; flow.ensure(8);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); setText(doc, C.slate);
+  doc.text(title, M.l, flow.y); doc.setFont('helvetica', 'normal'); setText(doc, C.black); flow.gap(5);
+}
+function bTable(flow: PdfFlow, rows: string[][]): void {
   const doc = flow.doc;
   if (rows.length === 0) return;
   const nCols = Math.max(...rows.map((r) => r.length));
   if (nCols === 0) return;
-
-  const fontSize = opts.fontSize ?? (nCols >= 9 ? 6 : nCols >= 7 ? 6.5 : 7.5);
+  const fontSize = nCols >= 9 ? 6 : nCols >= 7 ? 6.5 : 7.5;
   const lineH = fontSize * 0.42 + 0.6;
   const CW = flow.cw;
 
-  // 1. Medir largura de conteúdo por coluna
+  // Larguras auto-ajustadas
+  const colMax = new Array<number>(nCols).fill(0);
+  rows.forEach((r, ri) => {
+    doc.setFont('helvetica', ri === 0 ? 'bold' : 'normal'); doc.setFontSize(fontSize);
+    for (let c = 0; c < nCols; c++) { const w = doc.getTextWidth((r[c] ?? '').trim()); if (w > colMax[c]) colMax[c] = w; }
+  });
+  const needed = colMax.map((m) => m + PAD_X * 2);
+  const tot = needed.reduce((a, b) => a + b, 0);
   let colW: number[];
-  if (opts.weights && opts.weights.length === nCols) {
-    const sum = opts.weights.reduce((a, b) => a + b, 0);
-    colW = opts.weights.map((w) => (w / sum) * CW);
-  } else {
-    const colMax = new Array<number>(nCols).fill(0);
-    rows.forEach((r, ri) => {
-      doc.setFont('helvetica', ri === 0 ? 'bold' : 'normal');
-      doc.setFontSize(fontSize);
-      for (let c = 0; c < nCols; c++) {
-        const w = doc.getTextWidth((r[c] ?? '').trim());
-        if (w > colMax[c]) colMax[c] = w;
-      }
-    });
-    const needed = colMax.map((m) => m + PAD_X * 2);
-    const totalNeeded = needed.reduce((a, b) => a + b, 0);
-    if (totalNeeded <= CW) {
-      // Expandir proporcionalmente para preencher a largura
-      const extra = CW - totalNeeded;
-      colW = needed.map((n) => n + extra * (n / totalNeeded));
-    } else {
-      // Encolher proporcionalmente, com piso mínimo
-      const minCol = Math.max(10, CW / (nCols * 2.2));
-      let prelim = needed.map((n) => Math.max(minCol, (n / totalNeeded) * CW));
-      const sum = prelim.reduce((a, b) => a + b, 0);
-      colW = prelim.map((w) => (w / sum) * CW);
-    }
-  }
+  if (tot <= CW) { const extra = CW - tot; colW = needed.map((n) => n + extra * (n / tot)); }
+  else { const minC = Math.max(10, CW / (nCols * 2.2)); const pre = needed.map((n) => Math.max(minC, (n / tot) * CW)); const s = pre.reduce((a, b) => a + b, 0); colW = pre.map((w) => (w / s) * CW); }
 
-  const align = opts.align ?? [];
-
-  const drawRow = (cells: string[], isHeader: boolean): void => {
-    doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-    doc.setFontSize(fontSize);
-    // Wrap de cada célula
-    const wrapped = colW.map((cw, ci) =>
-      doc.splitTextToSize((cells[ci] ?? '').trim(), cw - PAD_X * 2) as string[],
-    );
+  const drawRow = (cells: string[], header: boolean, idx: number): void => {
+    doc.setFont('helvetica', header ? 'bold' : 'normal'); doc.setFontSize(fontSize);
+    const wrapped = colW.map((cw, ci) => doc.splitTextToSize((cells[ci] ?? '').trim(), cw - PAD_X * 2) as string[]);
     const nLines = Math.max(1, ...wrapped.map((w) => w.length));
     const rowH = nLines * lineH + 2.2;
-
-    // Quebra de página — repete o cabeçalho
-    if (flow.y + rowH > flow.bottom) {
-      flow.newPage();
-      if (!isHeader) drawRow(rows[0], true);
-    }
-
-    // Fundo da linha
-    if (isHeader) setFill(doc, C.green);
-    else setFill(doc, C.grayBg);
+    if (flow.y + rowH > flow.bottom) { flow.newPage(); if (!header) drawRow(rows[0], true, 0); }
+    // Fundo: cabeçalho cinza-claro; corpo alterna branco / cinza muito leve
+    setFill(doc, header ? C.headerGray : (idx % 2 === 0 ? C.white : C.rowGray));
     setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
     const totalW = colW.reduce((a, b) => a + b, 0);
-    doc.rect(flow.m.l, flow.y, totalW, rowH, isHeader ? 'F' : 'FD');
-
-    // Células
-    let x = flow.m.l;
+    doc.rect(M.l, flow.y, totalW, rowH, 'FD');
+    let x = M.l;
     wrapped.forEach((lines, ci) => {
       const cw = colW[ci];
-      setDraw(doc, C.grayBorder); doc.setLineWidth(0.12);
-      doc.rect(x, flow.y, cw, rowH, 'S');
-      setText(doc, isHeader ? C.white : C.black);
-      const a = align[ci] ?? 'left';
-      const tx = a === 'center' ? x + cw / 2 : a === 'right' ? x + cw - PAD_X : x + PAD_X;
-      lines.forEach((ln, li) => {
-        doc.text(ln, tx, flow.y + 3 + li * lineH, a === 'left' ? undefined : { align: a });
-      });
+      setDraw(doc, C.grayBorder); doc.setLineWidth(0.12); doc.rect(x, flow.y, cw, rowH, 'S');
+      setText(doc, C.black);
+      lines.forEach((ln, li) => doc.text(ln, x + PAD_X, flow.y + 3 + li * lineH));
       x += cw;
     });
     setText(doc, C.black); doc.setLineWidth(0.2);
     flow.y += rowH;
   };
-
-  rows.forEach((r, ri) => drawRow(r, ri === 0));
+  rows.forEach((r, ri) => drawRow(r, ri === 0, ri));
   flow.gap(3);
 }
 
-/** Título de tabela (itálico, antes da tabela). */
-export function tableTitle(flow: PdfFlow, title: string): void {
-  const doc = flow.doc;
-  flow.ensure(8);
-  doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(8.5);
-  setText(doc, C.slate);
-  doc.text(title, flow.m.l, flow.y);
-  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
-  flow.gap(5);
+// ── Render de blocos ──────────────────────────────────────────────────────────
+function renderBlocks(flow: PdfFlow, blocks: Block[]): void {
+  for (const blk of blocks) {
+    switch (blk.t) {
+      case 'section':    bSection(flow, blk.text); break;
+      case 'subsection': bSub(flow, blk.text); break;
+      case 'caps':       bCaps(flow, blk.text); break;
+      case 'para':       bPara(flow, blk.text); break;
+      case 'bullet':     bBullet(flow, blk.text); break;
+      case 'check':      bCheck(flow, blk.text); break;
+      case 'status':     bStatus(flow, blk.text, blk.ok); break;
+      case 'formula':    bFormula(flow, blk.text); break;
+      case 'mono':       bMono(flow, blk.text); break;
+      case 'table':      bTable(flow, blk.rows); break;
+      case 'tableTitle': bTableTitle(flow, blk.text); break;
+      case 'kv':         bKv(flow, blk.label, blk.value); break;
+      case 'checkitem':  bCheckitem(flow, blk.id, blk.name, blk.done, blk.como); break;
+      case 'noteBox':    bNoteBox(flow, blk.title, blk.lines); break;
+      case 'sigrule':    bSigrule(flow); break;
+      case 'divider':    bDivider(flow); break;
+      case 'gap':        flow.gap(2.5); break;
+    }
+  }
+}
+
+// ── Ponto de entrada ──────────────────────────────────────────────────────────
+export function renderSpecToPdf(doc: jsPDF, spec: DocSpec): void {
+  const chrome = minimalChrome(spec.chrome);
+  let flow: PdfFlow;
+  if (spec.cover) {
+    coverPage(doc, spec.cover);
+    doc.addPage();
+    flow = new PdfFlow(doc, chrome);
+  } else {
+    flow = new PdfFlow(doc, chrome);
+    if (spec.title) docTitle(flow, spec.title.title, spec.title.subtitle);
+  }
+  renderBlocks(flow, spec.blocks);
+  flow.finish();
+  rtWarning(doc, flow);
 }
