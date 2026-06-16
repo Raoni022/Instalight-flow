@@ -18,6 +18,7 @@ import { validarProjeto }    from './engine/validarProjeto';
 import { LS_KEY }            from './constants';
 import { exportarDossieZip } from './helpers/zip';
 import { pranchaSvgToPdfBlob } from './helpers/pdf';
+import { validateExportQuality, type ExportQuality } from './helpers/validateExport';
 
 import type { FormData, Toast, DocsGerados, ProjetoSalvo, StatusProjeto } from './types';
 
@@ -27,6 +28,8 @@ import { DiagramasTab }  from './components/tabs/DiagramasTab';
 import { MemorialTab }   from './components/tabs/MemorialTab';
 import { DocumentosTab } from './components/tabs/DocumentosTab';
 import { ResumoTab }     from './components/tabs/ResumoTab';
+import { ExportReviewModal } from './components/ExportReviewModal';
+import { PranchaCompleta } from './svg/PranchaCompleta';
 
 // ── Formulário inicial ────────────────────────────────────────────────────
 export const INITIAL_FORM: FormData = {
@@ -183,6 +186,7 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles]     = useState<File[]>([]);
   const [extractingData, setExtractingData]   = useState(false);
   const [aiFilledFields, setAiFilledFields]   = useState<Set<string>>(new Set());
+  const [reviewModal, setReviewModal]         = useState<ExportQuality | null>(null);
 
   // Referência para o SVG da prancha (exportação)
   const svgRef = useRef<SVGSVGElement>(null);
@@ -409,24 +413,23 @@ export default function App() {
   }, []);
 
   // ── Exportação em massa (dossiê ZIP) ──
-  const exportarTudo = useCallback(async () => {
-    const errosCriticos = validacoes.filter((x) => x.nivel === 'erro');
-    if (errosCriticos.length > 0) {
-      // Avisa mas NÃO bloqueia — o usuário decide se quer exportar assim mesmo
-      setToast({
-        message: `⚠ Exportando com ${errosCriticos.length} pendência(s). Revise antes do protocolo CEEE.`,
-        type: 'warning',
-      });
-    }
+  // Prancha pronta = dados mínimos para o desenho existem (independe da aba aberta,
+  // pois uma prancha oculta é montada permanentemente no editor).
+  const pranchaPronta = calc.kWp > 0 && !!formData.tipoLigacao && !!formData.nomeCliente;
 
-    setToast({
-      message: 'Gerando dossiê ZIP… ⚠ Se refinaste a procuração com IA, use o botão "Exportar PDF" na aba Documentos — o ZIP usa o texto original.',
-      type: 'info',
-    });
+  // Passo 1: validar e abrir o modal de revisão (não exporta direto).
+  const exportarTudo = useCallback(() => {
+    const q = validateExportQuality(formData, calc, validacoes, docsGerados, memorialIA, pranchaPronta);
+    setReviewModal(q);
+  }, [formData, calc, validacoes, docsGerados, memorialIA, pranchaPronta]);
+
+  // Passo 2: gerar de fato (só chamado pelo modal quando liberado).
+  const doExportZip = useCallback(async () => {
+    setReviewModal(null);
+    setToast({ message: 'Gerando dossiê ZIP (PDF + Word)…', type: 'info' });
     const svgString = svgRef.current
       ? new XMLSerializer().serializeToString(svgRef.current)
       : '';
-
     try {
       const pranchaPdfBlob = svgRef.current
         ? await pranchaSvgToPdfBlob(svgRef.current).catch(() => undefined)
@@ -436,7 +439,17 @@ export default function App() {
     } catch (err) {
       setToast({ message: 'Erro ao gerar ZIP: ' + String(err), type: 'error' });
     }
-  }, [formData, calc, memorialIA, docsGerados, validacoes]);
+  }, [formData, calc, memorialIA, docsGerados]);
+
+  // Navega para a aba correspondente (usado pelo modal e pelo painel de status).
+  const irParaAba = useCallback((aba: string) => {
+    setReviewModal(null);
+    const map: Record<string, TabId> = {
+      cliente: 'diagramas', diagramas: 'diagramas', memorial: 'memorial',
+      documentos: 'documentos', resumo: 'resumo',
+    };
+    setActiveTab(map[aba] ?? 'resumo');
+  }, []);
 
   // ── Documentos histórico do projeto aberto ──
   const documentosHistorico = projetoAberto && projetoIdAtual
@@ -623,7 +636,7 @@ export default function App() {
         {/* Área principal — tabs */}
         <main className="flex-1 overflow-hidden flex flex-col">
           {activeTab === 'diagramas' && (
-            <DiagramasTab fd={formData} calc={calc} svgRef={svgRef} />
+            <DiagramasTab fd={formData} calc={calc} />
           )}
           {activeTab === 'memorial' && (
             <MemorialTab
@@ -655,10 +668,27 @@ export default function App() {
               calc={calc}
               docsGerados={docsGerados}
               setToast={setToast}
+              quality={validateExportQuality(formData, calc, validacoes, docsGerados, memorialIA, pranchaPronta)}
+              onIrParaAba={irParaAba}
             />
           )}
         </main>
       </div>
+
+      {/* Prancha oculta — sempre montada para que o dossiê ZIP sempre inclua a
+          prancha, mesmo que o usuário não abra a aba Diagramas. */}
+      <div aria-hidden style={{ position: 'absolute', left: -99999, top: 0, width: 1600, pointerEvents: 'none', opacity: 0 }}>
+        <PranchaCompleta ref={svgRef} fd={formData} calc={calc} tipoDiagrama="ambos" />
+      </div>
+
+      {reviewModal && (
+        <ExportReviewModal
+          quality={reviewModal}
+          onConfirm={doExportZip}
+          onCancel={() => setReviewModal(null)}
+          onIrParaAba={irParaAba}
+        />
+      )}
 
       {/* ── Toast ──────────────────────────────────────────────────── */}
       {toast && (

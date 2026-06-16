@@ -7,13 +7,23 @@
 import React from 'react';
 import type { FormData, Calculos, DocsGerados, Toast } from '../../types';
 import { exportarPendenciasPDFStandalone, exportarPendenciasWord } from '../../helpers/export';
+import type { ExportQuality, DossieStatus } from '../../helpers/validateExport';
 
 interface ResumoTabProps {
   fd: FormData;
   calc: Calculos;
   docsGerados: DocsGerados;
   setToast: (t: Toast) => void;
+  quality: ExportQuality;
+  onIrParaAba: (aba: string) => void;
 }
+
+const STATUS_BADGE: Record<DossieStatus, { label: string; cls: string }> = {
+  pronto:    { label: 'Pronto',    cls: 'bg-green-50 text-green-700 border-green-200' },
+  aviso:     { label: 'Atenção',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  pendente:  { label: 'Pendente',  cls: 'bg-slate-50 text-slate-600 border-slate-200' },
+  bloqueado: { label: 'Bloqueado', cls: 'bg-red-50 text-red-600 border-red-200' },
+};
 
 const COLOR_MAP: Record<string, string> = {
   orange:  'bg-brand-50 border-brand-200 text-brand-700',
@@ -54,7 +64,7 @@ const CheckItem: React.FC<CheckItemProps> = ({ id, doc, gerado, como, link }) =>
   </div>
 );
 
-export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, setToast }) => {
+export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, setToast, quality, onIrParaAba }) => {
   const isAmpl   = fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0;
   const potCC    = isAmpl ? `${calc.kWpTotal} kWp (total)` : `${calc.kWp} kWp`;
   const potCA    = isAmpl ? `${calc.kWtCATotal} kW (total)` : `${calc.kWtCA} kW`;
@@ -135,6 +145,46 @@ export const ResumoTab: React.FC<ResumoTabProps> = ({ fd, calc, docsGerados, set
       </div>
 
       <div className="flex-1 p-4 space-y-6">
+        {/* Status do Dossiê */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-slate-700">Status do Dossiê</h3>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+              quality.canExport ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'
+            }`}>
+              Dossiê final: {quality.canExport ? 'Liberado' : 'Bloqueado'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {quality.itens.map((it) => (
+              <div key={it.id} className={`rounded-lg border p-2.5 flex items-start gap-2 ${STATUS_BADGE[it.status].cls}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-slate-800">{it.nome}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${STATUS_BADGE[it.status].cls}`}>
+                      {STATUS_BADGE[it.status].label}
+                    </span>
+                  </div>
+                  {it.motivo && <p className="text-xs opacity-80 mt-0.5">{it.motivo}</p>}
+                </div>
+                {it.aba && it.status !== 'pronto' && (
+                  <button
+                    onClick={() => onIrParaAba(it.aba!)}
+                    className="flex-shrink-0 text-xs font-medium text-brand-600 hover:underline whitespace-nowrap"
+                  >
+                    Corrigir →
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {quality.erros.length > 0 && (
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+              <span className="font-semibold">Erros críticos:</span> {quality.erros.join(' · ')}
+            </div>
+          )}
+        </div>
+
         {/* Cards */}
         <div className="grid grid-cols-3 gap-3">
           {cards.map((c) => (

@@ -2,8 +2,7 @@
  * DiagramasTab.tsx — Aba de visualização e exportação da prancha elétrica
  */
 
-import React, { useState } from 'react';
-import type { RefObject } from 'react';
+import React, { useState, useRef } from 'react';
 import type { FormData, Calculos } from '../../types';
 import { PranchaCompleta } from '../../svg/PranchaCompleta';
 import type { TipoDiagrama } from '../../svg/PranchaCompleta';
@@ -13,7 +12,6 @@ import { pranchaSvgToPdfBlob } from '../../helpers/pdf';
 interface DiagramasTabProps {
   fd: FormData;
   calc: Calculos;
-  svgRef: RefObject<SVGSVGElement>;
 }
 
 const OPCOES: { id: TipoDiagrama; label: string }[] = [
@@ -22,8 +20,9 @@ const OPCOES: { id: TipoDiagrama; label: string }[] = [
   { id: 'multifilar', label: '〰 Multifilar' },
 ];
 
-export const DiagramasTab: React.FC<DiagramasTabProps> = ({ fd, calc, svgRef }) => {
+export const DiagramasTab: React.FC<DiagramasTabProps> = ({ fd, calc }) => {
   const [tipoDiagrama, setTipoDiagrama] = useState<TipoDiagrama>('ambos');
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const exportSVG = () => {
     const svg = svgRef.current;
