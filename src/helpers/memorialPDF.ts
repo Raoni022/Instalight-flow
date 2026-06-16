@@ -30,7 +30,7 @@ function buildCoverSpec(fd: FormData, calc: Calculos): CoverSpec {
     ['Nome', fd.nomeResponsavel || '[INSERIR]'],
     ['Profissão', fd.profissaoRT || '[INSERIR PROFISSÃO]'],
     ['CRT/CREA', fd.numeroCRT || '[INSERIR]'],
-    [(fd.tipoResponsabilidade || 'TRT') + '/ART', fd.numART || '[INSERIR NÚMERO]'],
+    [`Nº ${fd.tipoResponsabilidade || 'TRT'}`, fd.numART || '[INSERIR NÚMERO]'],
     ['Empresa', fd.nomeEmpresa || 'Instalight Energia Solar'],
   ];
 

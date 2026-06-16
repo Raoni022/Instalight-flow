@@ -31,6 +31,19 @@ export const setText = (d: jsPDF, c: RGB) => d.setTextColor(c[0], c[1], c[2]);
 export interface Margins { l: number; r: number; t: number; b: number; }
 const M: Margins = { l: 18, r: 18, t: 24, b: 18 };
 
+// ── Sanitização para fontes padrão do jsPDF (sem glifos não-WinAnsi) ──────────
+// As fontes core do jsPDF (helvetica/courier) só têm cp1252; Greek/matemáticos
+// (Δ γ ρ Ω √ ≤ ≥…) sairiam como lixo. Mapeamos para ASCII legível. (°²³×·µ± são
+// WinAnsi e renderizam — mantidos.) O DOCX NÃO usa isto (Calibri tem os glifos).
+const PDF_SUBST: [RegExp, string][] = [
+  [/Δ/g, 'D'], [/γ/g, 'g'], [/ρ/g, 'rho'], [/Ω/g, 'ohm'], [/π/g, 'pi'],
+  [/√/g, 'raiz '], [/≈/g, '~='], [/≤/g, '<='], [/≥/g, '>='], [/≠/g, '!='],
+  [/→/g, '->'], [/←/g, '<-'], [/↔/g, '<->'], [/⋯/g, '...'],
+  [/[✔✓]/g, 'OK'], [/✗/g, 'X'], [/⚠/g, '!'], [/□/g, '[ ]'],
+  [/[┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬]/g, '+'], [/[─━═]/g, '-'], [/[│┃║]/g, '|'],
+];
+function san(s: string): string { let r = s; for (const [re, v] of PDF_SUBST) r = r.replace(re, v); return r; }
+
 // ── Fluxo (cursor + quebra de página) ─────────────────────────────────────────
 interface Chrome { header?: (d: jsPDF, p: number) => number; footer?: (d: jsPDF, p: number) => void; }
 
@@ -136,7 +149,22 @@ function coverInfoBox(doc: jsPDF, box: CoverInfoBox, BX: number, BW: number, y: 
   return y + bodyH;
 }
 
-export function coverPage(doc: jsPDF, spec: CoverSpec): void {
+export function coverPage(doc: jsPDF, raw: CoverSpec): void {
+  // Sanitiza todos os textos da capa para as fontes padrão do jsPDF
+  const spec: CoverSpec = {
+    ...raw,
+    brandTitle: raw.brandTitle && san(raw.brandTitle),
+    brandSubtitle: raw.brandSubtitle && san(raw.brandSubtitle),
+    docTitle: san(raw.docTitle),
+    docSubtitle: raw.docSubtitle && san(raw.docSubtitle),
+    highlight: raw.highlight && {
+      bannerTitle: san(raw.highlight.bannerTitle), bigLine: san(raw.highlight.bigLine),
+      midLine: raw.highlight.midLine && san(raw.highlight.midLine),
+      smallLine: raw.highlight.smallLine && san(raw.highlight.smallLine),
+    },
+    infoBoxes: raw.infoBoxes?.map((b) => ({ title: san(b.title), rows: b.rows.map((r) => [san(r[0]), san(r[1])] as [string, string]) })),
+    footerNote: raw.footerNote && san(raw.footerNote),
+  };
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const BX = M.l, BW = W - M.l - M.r;
@@ -390,8 +418,24 @@ function bTable(flow: PdfFlow, rows: string[][]): void {
 }
 
 // ── Render de blocos ──────────────────────────────────────────────────────────
+/** Sanitiza os textos de um bloco para as fontes padrão do jsPDF. */
+function sanBlock(b: Block): Block {
+  switch (b.t) {
+    case 'section': case 'subsection': case 'caps': case 'para':
+    case 'bullet': case 'check': case 'status': case 'formula':
+    case 'mono': case 'tableTitle':
+      return { ...b, text: san(b.text) };
+    case 'kv': return { ...b, label: san(b.label), value: san(b.value) };
+    case 'checkitem': return { ...b, name: san(b.name), como: san(b.como) };
+    case 'noteBox': return { ...b, title: b.title ? san(b.title) : b.title, lines: b.lines.map(san) };
+    case 'table': return { ...b, rows: b.rows.map((r) => r.map(san)) };
+    default: return b;
+  }
+}
+
 function renderBlocks(flow: PdfFlow, blocks: Block[]): void {
-  for (const blk of blocks) {
+  for (const raw of blocks) {
+    const blk = sanBlock(raw);
     switch (blk.t) {
       case 'section':    bSection(flow, blk.text); break;
       case 'subsection': bSub(flow, blk.text); break;
