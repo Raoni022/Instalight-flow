@@ -149,21 +149,47 @@ function cleanupBlocks(blocks: Block[]): Block[] {
 // ── Blocos imperativos: Formulário CEEE ──────────────────────────────────────
 export function buildFormularioBlocks(fd: FormData, calc: Calculos): Block[] {
   const b: Block[] = [];
-  b.push({ t: 'section', text: 'DADOS DO TITULAR' });
   const kv = (label: string, value: string | undefined) => b.push({ t: 'kv', label, value: value || '—' });
+
+  // Tipo de solicitação (espelha as opções da GUIA 1 do Anexo I)
+  const tipoSolicitacao = fd.tipoInstalacao === 'Ampliação'
+    ? 'Aumento da potência de geração em UC com GD existente'
+    : 'Ligação nova de UC com geração distribuída';
+
+  // ── 1. Identificação e Dados Cadastrais da UC ──────────────────────────────
+  b.push({ t: 'section', text: '1. IDENTIFICAÇÃO E DADOS CADASTRAIS DA UC' });
   kv('Nome/Razão Social', fd.nomeCliente);
   kv('CPF/CNPJ', fd.cpfCnpj);
-  kv('Endereço da UC', fd.endereco);
-  kv('Código UC', fd.codigoUC);
-  kv('Nº Conta-Contrato', fd.numContaContrato);
-  kv('Nº Fatura', fd.numeroFatura);
-  if (fd.numeroMedidor) kv('Nº do Medidor', fd.numeroMedidor);
+  if (fd.tipoPessoa === 'juridica' && fd.inscricaoEstadual) kv('Inscrição Estadual', fd.inscricaoEstadual);
   if (fd.classeUC) kv('Classe da UC', fd.classeUC);
+  kv('Endereço da UC', fd.endereco);
+  kv('Município / UF', `${fd.cidade || '—'} / RS`);
+  if (fd.cep) kv('CEP', fd.cep);
+  kv('Código da UC', fd.codigoUC);
+  kv('Nº Conta-Contrato', fd.numContaContrato);
+  kv('Nº Fatura de referência', fd.numeroFatura);
+  if (fd.numeroMedidor) kv('Nº do Medidor', fd.numeroMedidor);
+  const contato = [fd.telefoneCelular, fd.telefoneContato].filter(Boolean).join(' / ');
+  if (contato) kv('Telefone(s)', contato);
+  if (fd.emailContato) kv('E-mail', fd.emailContato);
+  if (fd.tipoPessoa === 'juridica' && fd.nomeRepresentante) {
+    kv('Representante Legal', `${fd.nomeRepresentante}${fd.cargoRepresentante ? ` (${fd.cargoRepresentante})` : ''}`);
+  }
+  kv('Tipo de Solicitação', tipoSolicitacao);
 
-  b.push({ t: 'section', text: 'DADOS DO SISTEMA' });
+  // ── 2. Dados do Responsável Técnico ────────────────────────────────────────
+  b.push({ t: 'section', text: '2. DADOS DO RESPONSÁVEL TÉCNICO' });
+  kv('Responsável Técnico', fd.nomeResponsavel);
+  kv('Profissão', fd.profissaoRT);
+  kv('CRT/CREA', fd.numeroCRT);
+  kv(`Nº ${fd.tipoResponsabilidade || 'TRT'}`, fd.numART);
+
+  // ── 3. Características da Microgeração Distribuída ──────────────────────────
+  b.push({ t: 'section', text: '3. CARACTERÍSTICAS DA MICROGERAÇÃO DISTRIBUÍDA' });
+  kv('Tipo de Geração', 'Solar Fotovoltaica');
+  kv('Modalidade de Compensação', fd.tipoCaracterizacao);
+  kv('Enquadramento', calc.enqTotal);
   kv('Tipo de Instalação', fd.tipoInstalacao || 'Nova');
-  kv('Caracterização (Lei 14.300/2022)', fd.tipoCaracterizacao);
-  kv('Tipo de Geração / Enquadramento', calc.enqTotal);
   if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
     kv('Potência CC — nova instalação', `${calc.kWp} kWp`);
     kv('Potência CC — existente', `${calc.kWpExistente} kWp`);
@@ -172,18 +198,18 @@ export function buildFormularioBlocks(fd: FormData, calc: Calculos): Block[] {
     kv('Potência CA — existente', `${calc.kWtCAExistente} kW`);
     kv('Potência CA — TOTAL', `${calc.kWtCATotal} kW`);
   } else {
-    kv('Potência CC instalada', `${calc.kWp} kWp`);
-    kv('Potência CA nominal', `${calc.kWtCA} kW`);
+    kv('Potência de Pico (CC)', `${calc.kWp} kWp`);
+    kv('Potência Nominal (CA)', `${calc.kWtCA} kW`);
   }
+  kv('Potência máxima injetável', 'Igual à potência total da geração (salvo limitador declarado)');
   kv('Tipo de Ligação', fd.tipoLigacao);
   if (fd.latitude || fd.longitude) kv('Coordenadas GPS', `Lat ${fd.latitude || '—'} / Long ${fd.longitude || '—'}`);
   if (fd.transformador) kv('Transformador', fd.transformador);
-  if (fd.disjuntorEntrada) kv('DJ Geral Entrada', `${fd.disjuntorEntrada} A`);
+  if (fd.numPoste) kv('Nº do Poste', fd.numPoste);
+  if (fd.disjuntorEntrada) kv('DJ Geral de Entrada', `${fd.disjuntorEntrada} A`);
   if (fd.ramalEntrada) kv('Ramal de Entrada', fd.ramalEntrada);
-  kv('Módulos FV', `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`);
-  kv('Inversor', fd.modeloInversor || '—');
-  kv('Responsável Técnico', fd.nomeResponsavel);
-  kv('CRT/CREA', fd.numeroCRT);
+  kv('Módulos FV', `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'} Wp`);
+  kv('Inversor(es)', `${fd.quantidadeInversores || 1}× ${fd.modeloInversor || '—'} (${fd.potenciaCAkW || '—'} kW)`);
 
   b.push({
     t: 'noteBox',
