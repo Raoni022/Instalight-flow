@@ -58,40 +58,40 @@ function blockToDocx(blk: Block): (Paragraph | Table)[] {
   switch (blk.t) {
     case 'section':
       return [new Paragraph({
-        heading: HeadingLevel.HEADING_1, spacing: { before: 180, after: 80 },
+        heading: HeadingLevel.HEADING_1, spacing: { before: 400, after: 160 }, keepNext: true,
         border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: GREEN } },
         children: [new TextRun({ text: blk.text, bold: true, size: 22, color: BLACK })],
       })];
     case 'subsection':
       return [new Paragraph({
-        heading: HeadingLevel.HEADING_2, spacing: { before: 120, after: 40 },
+        heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 80 }, keepNext: true,
         children: [new TextRun({ text: blk.text, bold: true, size: 19, color: GREEN_DARK })],
       })];
     case 'caps':
       return [new Paragraph({
-        spacing: { before: 120, after: 40 },
+        spacing: { before: 220, after: 80 }, keepNext: true,
         shading: { type: ShadingType.SOLID, color: GRAY_HEADER, fill: GRAY_HEADER },
         children: [new TextRun({ text: blk.text, bold: true, size: 18, color: BLACK })],
       })];
     case 'para':
-      return [new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: blk.text, size: 18, color: BLACK })] })];
+      return [new Paragraph({ spacing: { after: 140, line: 276 }, children: [new TextRun({ text: blk.text, size: 18, color: BLACK })] })];
     case 'bullet':
-      return [new Paragraph({ bullet: { level: 0 }, spacing: { after: 20 }, children: [new TextRun({ text: blk.text, size: 18, color: BLACK })] })];
+      return [new Paragraph({ bullet: { level: 0 }, spacing: { after: 60, line: 264 }, children: [new TextRun({ text: blk.text, size: 18, color: BLACK })] })];
     case 'check':
-      return [new Paragraph({ spacing: { after: 20 }, children: [new TextRun({ text: '☐  ' + blk.text, size: 17, color: BLACK })] })];
+      return [new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: '☐  ' + blk.text, size: 17, color: BLACK })] })];
     case 'status':
-      return [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: (blk.ok ? '[OK] ' : '[!] ') + blk.text, bold: true, size: 17, color: blk.ok ? GREEN_DARK : AMBER_DARK })] })];
+      return [new Paragraph({ spacing: { before: 40, after: 80 }, children: [new TextRun({ text: (blk.ok ? '[OK] ' : '[!] ') + blk.text, bold: true, size: 17, color: blk.ok ? GREEN_DARK : AMBER_DARK })] })];
     case 'formula':
-      return [new Paragraph({ spacing: { after: 20 }, indent: { left: 280 }, children: [new TextRun({ text: blk.text, font: 'Courier New', size: 16, color: SLATE })] })];
+      return [new Paragraph({ spacing: { after: 30 }, indent: { left: 280 }, children: [new TextRun({ text: blk.text, font: 'Courier New', size: 16, color: SLATE })] })];
     case 'mono':
-      return [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: blk.text, font: 'Courier New', size: 16, color: SLATE })] })];
+      return [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: blk.text, font: 'Courier New', size: 16, color: SLATE })] })];
     case 'tableTitle':
-      return [new Paragraph({ spacing: { before: 80, after: 30 }, children: [new TextRun({ text: blk.text, bold: true, italics: true, size: 17, color: SLATE })] })];
+      return [new Paragraph({ spacing: { before: 160, after: 50 }, keepNext: true, children: [new TextRun({ text: blk.text, bold: true, italics: true, size: 17, color: SLATE })] })];
     case 'table':
-      return [docxTable(blk.rows), new Paragraph({ spacing: { after: 80 }, children: [] })];
+      return [docxTable(blk.rows), new Paragraph({ spacing: { after: 160 }, children: [] })];
     case 'kv':
       return [new Paragraph({
-        spacing: { after: 30 },
+        spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: GRAY_BORDER } },
         children: [
           new TextRun({ text: blk.label + ': ', bold: true, size: 18, color: SLATE }),
@@ -100,7 +100,7 @@ function blockToDocx(blk: Block): (Paragraph | Table)[] {
       })];
     case 'checkitem':
       return [new Paragraph({
-        spacing: { before: 60, after: 60 },
+        spacing: { before: 120, after: 100 },
         children: [
           new TextRun({ text: `${blk.id} — ${blk.name}`, bold: true, size: 18, color: BLACK }),
           new TextRun({ text: blk.done ? '   [x] GERADO' : '   [ ] PENDENTE', bold: true, size: 16, color: blk.done ? GREEN_DARK : AMBER_DARK }),

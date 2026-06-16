@@ -117,7 +117,33 @@ export function parseRichText(text: string): Block[] {
     out.push({ t: 'para', text: t });
   }
   flush();
-  return out;
+  return cleanupBlocks(out);
+}
+
+/**
+ * Pós-processo do parser:
+ *  - remove divisores (`----`) adjacentes a títulos de seção/caps — eles já têm
+ *    estilo próprio, e a régua dupla deixava o layout "grudado";
+ *  - colapsa gaps consecutivos e remove gap logo após um título.
+ */
+function cleanupBlocks(blocks: Block[]): Block[] {
+  const isHeading = (b?: Block) => !!b && (b.t === 'section' || b.t === 'caps');
+  const r: Block[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.t === 'divider') {
+      const prev = [...r].reverse().find((x) => x.t !== 'gap');
+      let j = i + 1;
+      while (j < blocks.length && blocks[j].t === 'gap') j++;
+      if (isHeading(prev) || isHeading(blocks[j])) continue; // régua redundante
+    }
+    if (b.t === 'gap') {
+      const last = r[r.length - 1];
+      if (!last || last.t === 'gap' || isHeading(last)) continue; // evita gap duplo / após título
+    }
+    r.push(b);
+  }
+  return r;
 }
 
 // ── Blocos imperativos: Formulário CEEE ──────────────────────────────────────

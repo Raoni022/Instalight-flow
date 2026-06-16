@@ -218,33 +218,38 @@ function docTitle(flow: PdfFlow, title: string, subtitle?: string): void {
 // ── Primitivos de bloco ───────────────────────────────────────────────────────
 function bSection(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  flow.ensure(12); flow.gap(3);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); setText(doc, C.black);
+  // Espaço generoso antes + controle de órfão (mantém o título com as próximas linhas)
+  flow.gap(7);
+  flow.ensure(30);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); setText(doc, C.black);
   doc.text(title, M.l, flow.y);
-  flow.gap(1.5);
-  setDraw(doc, C.green); doc.setLineWidth(0.4); doc.line(M.l, flow.y, flow.W - M.r, flow.y); doc.setLineWidth(0.2);
-  setText(doc, C.black); flow.gap(4.5);
+  flow.gap(2);
+  setDraw(doc, C.green); doc.setLineWidth(0.5); doc.line(M.l, flow.y, flow.W - M.r, flow.y); doc.setLineWidth(0.2);
+  setText(doc, C.black); flow.gap(6);
 }
 function bSub(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  flow.ensure(9); flow.gap(1.5);
+  flow.gap(3.5);
+  flow.ensure(16);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); setText(doc, C.greenDark);
   doc.splitTextToSize(title, flow.cw).forEach((l: string) => { doc.text(l, M.l, flow.y); flow.y += 5; });
-  doc.setFont('helvetica', 'normal'); setText(doc, C.black);
+  doc.setFont('helvetica', 'normal'); setText(doc, C.black); flow.gap(1.5);
 }
 function bCaps(flow: PdfFlow, title: string): void {
   const doc = flow.doc;
-  flow.ensure(11); flow.gap(2);
+  flow.gap(4);
+  flow.ensure(16);
   setFill(doc, C.headerGray); setDraw(doc, C.grayBorder); doc.setLineWidth(0.2);
   doc.rect(M.l, flow.y - 4.5, flow.cw, 7, 'FD');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); setText(doc, C.black);
   doc.text(title, M.l + 2, flow.y);
-  doc.setFont('helvetica', 'normal'); flow.gap(7);
+  doc.setFont('helvetica', 'normal'); flow.gap(8);
 }
-function bPara(flow: PdfFlow, text: string, size = 9, lh = 5): void {
+function bPara(flow: PdfFlow, text: string, size = 9, lh = 5.2): void {
   const doc = flow.doc;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(size); setText(doc, C.black);
   doc.splitTextToSize(text, flow.cw).forEach((l: string) => { flow.ensure(lh); doc.text(l, M.l, flow.y); flow.y += lh; });
+  flow.gap(1.5);
 }
 function bBullet(flow: PdfFlow, text: string): void {
   const doc = flow.doc;
@@ -333,7 +338,7 @@ function bCheckitem(flow: PdfFlow, id: string, name: string, done: boolean, como
 
 const PAD_X = 1.6;
 function bTableTitle(flow: PdfFlow, title: string): void {
-  const doc = flow.doc; flow.ensure(8);
+  const doc = flow.doc; flow.gap(2); flow.ensure(12);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); setText(doc, C.slate);
   doc.text(title, M.l, flow.y); doc.setFont('helvetica', 'normal'); setText(doc, C.black); flow.gap(5);
 }
@@ -381,7 +386,7 @@ function bTable(flow: PdfFlow, rows: string[][]): void {
     flow.y += rowH;
   };
   rows.forEach((r, ri) => drawRow(r, ri === 0, ri));
-  flow.gap(3);
+  flow.gap(5);
 }
 
 // ── Render de blocos ──────────────────────────────────────────────────────────
@@ -404,7 +409,7 @@ function renderBlocks(flow: PdfFlow, blocks: Block[]): void {
       case 'noteBox':    bNoteBox(flow, blk.title, blk.lines); break;
       case 'sigrule':    bSigrule(flow); break;
       case 'divider':    bDivider(flow); break;
-      case 'gap':        flow.gap(2.5); break;
+      case 'gap':        flow.gap(3.2); break;
     }
   }
 }
