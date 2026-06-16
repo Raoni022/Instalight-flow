@@ -47,17 +47,17 @@ const SECOES = [
   { id: '3',      label: '3. Dados da UC',              icon: '🏠', tipo: 'js' },
   { id: '4',      label: '4. Levantamento de Carga',    icon: '📊', tipo: 'js' },
   { id: '5',      label: '5. Padrão de Entrada',        icon: '⚡', tipo: 'js' },
-  { id: '6',      label: '6. Estimativa de Geração',    icon: '🌱', tipo: 'ia' },
-  { id: '7',      label: '7. Dim. Gerador (Tabela 3)',  icon: '☀️', tipo: 'js' },
-  { id: '8',      label: '8. Dim. Inversor (Tabela 4)', icon: '🔄', tipo: 'js' },
-  { id: '9',      label: '9. Estrutura de Fixação',     icon: '🏗️', tipo: 'ia' },
-  { id: '10',     label: '10. Proteções (Tabela 5)',    icon: '🛡️', tipo: 'js' },
-  { id: '11',     label: '11. Cabos',                   icon: '🔌', tipo: 'js' },
-  { id: '12',     label: '12. Placa de Advertência',    icon: '⚠️', tipo: 'js' },
-  { id: '13',     label: '13. Comissionamento',         icon: '🔬', tipo: 'ia' },
-  { id: '14',     label: '14. Exploração/Manutenção',   icon: '🔧', tipo: 'js' },
-  { id: '15',     label: '15. Notas NR-10',             icon: '⛑️', tipo: 'js' },
-  { id: '16',     label: '16. Normas Adotadas',         icon: '📖', tipo: 'js' },
+  { id: '6',      label: '6. Dim. Gerador (Tabela 3)',  icon: '☀️', tipo: 'js' },
+  { id: '7',      label: '7. Dim. Inversor (Tabela 4)', icon: '🔄', tipo: 'js' },
+  { id: '8',      label: '8. Proteção (Tabela 5)',      icon: '🛡️', tipo: 'js' },
+  { id: '9',      label: '9. Cabos',                    icon: '🔌', tipo: 'js' },
+  { id: '10',     label: '10. Placa de Advertência',    icon: '⚠️', tipo: 'js' },
+  { id: '11',     label: '11. Anexos',                  icon: '📎', tipo: 'js' },
+  { id: '12',     label: '12. Geração e Impacto',       icon: '🌱', tipo: 'ia' },
+  { id: '13',     label: '13. Estrutura de Fixação',    icon: '🏗️', tipo: 'ia' },
+  { id: '14',     label: '14. Comissionamento',         icon: '🔬', tipo: 'ia' },
+  { id: '15',     label: '15. Exploração/Manutenção',   icon: '🔧', tipo: 'js' },
+  { id: '16',     label: '16. Notas NR-10',             icon: '⛑️', tipo: 'js' },
 ] as const;
 
 export const MemorialTab: React.FC<MemorialTabProps> = ({
@@ -82,10 +82,10 @@ Contexto do projeto:
 - CO₂ evitado: ${calc.co2EvitadoAnual.toLocaleString('pt-BR')} kg/ano | Árvores equiv.: ${calc.arvoresEquivalente}
 
 Instruções para cada marcador:
-[[[IA_NARRATIVA_SEC1]]] — OBJETIVO: 2–3 parágrafos apresentando o propósito do documento, os dados do cliente/UC, a empresa instaladora e o responsável técnico. Mencionar Lei 14.300/2022 e REN 1.000/2021.
-[[[IA_NARRATIVA_SEC7]]] — ESTRUTURA DE FIXAÇÃO: 2–3 parágrafos descrevendo tecnicamente a estrutura de suporte para telhado do tipo "${fd.tipoTelhado}", materiais (alumínio anodizado, inox), critérios de resistência ao vento e corrosão.
-[[[IA_NARRATIVA_SEC10]]] — IMPACTO AMBIENTAL: 2–3 parágrafos sobre redução de emissões (use os valores de CO₂ e árvores já calculados), contribuição para a matriz energética renovável e benefícios para a UC.
-[[[IA_NARRATIVA_SEC12]]] — COMISSIONAMENTO (parágrafo introdutório apenas): 1–2 parágrafos introdutórios sobre a necessidade e objetivos do comissionamento, os critérios de aceitação gerais e a obrigatoriedade de profissional habilitado NR-10. As sub-etapas já estão escritas — não as duplique.
+[[[IA_NARRATIVA_SEC1]]] — Seção 1 OBJETIVO: 2–3 parágrafos apresentando o propósito do documento, os dados do cliente/UC, a empresa instaladora e o responsável técnico. Mencionar Lei 14.300/2022 e REN 1.000/2021.
+[[[IA_NARRATIVA_SEC10]]] — Seção 12.2 IMPACTO AMBIENTAL: 2–3 parágrafos sobre redução de emissões (use os valores de CO₂ e árvores já calculados), contribuição para a matriz energética renovável e benefícios para a UC.
+[[[IA_NARRATIVA_SEC7]]] — Seção 13 ESTRUTURA DE FIXAÇÃO: 2–3 parágrafos descrevendo tecnicamente a estrutura de suporte para telhado do tipo "${fd.tipoTelhado}", materiais (alumínio anodizado, inox), critérios de resistência ao vento e corrosão.
+[[[IA_NARRATIVA_SEC12]]] — Seção 14 COMISSIONAMENTO (parágrafo introdutório apenas): 1–2 parágrafos introdutórios sobre a necessidade e objetivos do comissionamento, os critérios de aceitação gerais e a obrigatoriedade de profissional habilitado NR-10. As sub-etapas já estão escritas — não as duplique.
 
 Retorne o documento completo com os marcadores substituídos pelo texto técnico.
 
