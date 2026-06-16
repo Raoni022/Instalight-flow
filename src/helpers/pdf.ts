@@ -41,7 +41,7 @@ export const pdfHeader = (doc: jsPDF, fd: FormData): void => {
  * (evita o erro "unable to find element in cloned iframe").
  */
 export async function pranchaSvgToPdfBlob(svgEl: SVGSVGElement): Promise<Blob> {
-  const W = 1600, H = 980, scale = 1.5;
+  const W = 1600, H = 980, scale = 2;
 
   // Serializar SVG garantindo namespace (necessário para Image.src funcionar)
   const raw = new XMLSerializer().serializeToString(svgEl);
@@ -64,11 +64,12 @@ export async function pranchaSvgToPdfBlob(svgEl: SVGSVGElement): Promise<Blob> {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      // PNG (lossless) preserva linhas finas e texto do diagrama sem artefato
+      const imgData = canvas.toDataURL('image/png');
       const doc  = makePDF('l', 'a3');
       const pW   = doc.internal.pageSize.getWidth();
       const pH   = doc.internal.pageSize.getHeight();
-      doc.addImage(imgData, 'JPEG', 5, 5, pW - 10, pH - 10);
+      doc.addImage(imgData, 'PNG', 5, 5, pW - 10, pH - 10);
       resolve(doc.output('blob'));
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao renderizar SVG para PDF')); };

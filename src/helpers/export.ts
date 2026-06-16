@@ -11,9 +11,88 @@
  */
 
 import type { FormData, Calculos, DocsGerados } from '../types';
-import { makePDF, pdfHeader, pdfFooter, pdfRTWarning, addTextBlock } from './pdf';
+import { makePDF, pdfHeader, pdfFooter, pdfRTWarning } from './pdf';
 import { makeFilename } from './filename';
 import { buildMemorialPDFPro } from './memorialPDF';
+import {
+  PdfFlow, greenChrome, rtWarningBanner, docTitle,
+  sectionBar, capsHeader, paragraph, bullet, kvLine,
+  table, checklistItem, setDraw, C,
+} from './pdfKit';
+
+// ── Renderizador de texto legal estruturado ──────────────────────────────────
+// Converte o texto-fonte (gerarTexto*) em layout profissional via pdfKit,
+// preservando o texto como fonte única (também usado no preview da UI).
+
+/** Remove o bloco de título (linhas até a primeira em branco, inclusive). */
+function dropTitleBlock(txt: string): string {
+  const ls = txt.split('\n');
+  let i = 0;
+  while (i < ls.length && ls[i].trim() !== '') i++;   // pula linhas do título
+  while (i < ls.length && ls[i].trim() === '') i++;    // pula as linhas em branco
+  return ls.slice(i).join('\n');
+}
+
+/** Linha de assinatura (régua + rótulos abaixo renderizados como corpo). */
+function signatureRule(flow: PdfFlow): void {
+  flow.ensure(8);
+  flow.gap(3);
+  setDraw(flow.doc, C.black); flow.doc.setLineWidth(0.3);
+  flow.doc.line(flow.m.l, flow.y, flow.m.l + 85, flow.y);
+  flow.doc.setLineWidth(0.2);
+  flow.gap(4);
+}
+
+function renderLegalText(flow: PdfFlow, text: string): void {
+  const lines = text.split('\n');
+  let tbl: string[][] = [];
+  const flush = (): void => { if (tbl.length) { table(flow, tbl); tbl = []; } };
+
+  for (const raw of lines) {
+    const t = raw.trim();
+
+    // Tabela markdown
+    if (/^\|/.test(t)) {
+      const parts = t.split('|').slice(1, -1);
+      const isSep = parts.every((p) => /^[-: ]+$/.test(p));
+      if (!isSep && parts.some((p) => p.trim().length > 0)) tbl.push(parts.map((p) => p.trim()));
+      continue;
+    }
+    if (tbl.length) flush();
+
+    if (t === '') { flow.gap(2.5); continue; }
+
+    // Régua de assinatura
+    if (/^_{5,}/.test(t)) { signatureRule(flow); continue; }
+
+    // Bullet
+    if (/^[•●]\s/.test(t)) { bullet(flow, t.replace(/^[•●]\s*/, '')); continue; }
+
+    // Cláusula
+    if (/^Cláusula\s/i.test(t)) {
+      flow.ensure(8); flow.gap(1);
+      flow.doc.setFont('helvetica', 'bold'); flow.doc.setFontSize(9.5);
+      flow.doc.setTextColor(C.greenDark[0], C.greenDark[1], C.greenDark[2]);
+      const wr = flow.doc.splitTextToSize(t, flow.cw) as string[];
+      wr.forEach((l) => { flow.doc.text(l, flow.m.l, flow.y); flow.y += 5.5; });
+      flow.doc.setFont('helvetica', 'normal'); flow.doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+      continue;
+    }
+
+    // Cabeçalho ALL-CAPS curto e standalone
+    if (
+      t === t.toUpperCase() && t.length > 4 && t.length < 60 &&
+      /[A-ZÁÉÍÓÚ]/.test(t) && !t.includes(':') && !/[•|_]/.test(t) &&
+      t.split(/\s+/).length <= 6
+    ) {
+      capsHeader(flow, t); continue;
+    }
+
+    // Corpo
+    paragraph(flow, t);
+  }
+  flush();
+}
 
 // ── Helpers internos de build ──────────────────────────────────────────────
 
@@ -63,118 +142,81 @@ NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma r
 
 function _buildProcuracaoPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
-  pdfHeader(doc, fd);
-  const W = doc.internal.pageSize.getWidth();
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PROCURAÇÃO ESPECÍFICA', W / 2, 35, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Art. 9° — REN ANEEL n° 1.000/2021', W / 2, 42, { align: 'center' });
-  addTextBlock(doc, gerarTextoProcuracao(fd, calc), 14, 14, 52, 5.5);
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
+  const flow = new PdfFlow(doc, greenChrome({
+    title: 'PROCURAÇÃO ESPECÍFICA',
+    subtitle: `${(fd.nomeCliente || '—').substring(0, 40)}  |  UC: ${fd.codigoUC || '—'}`,
+    company: fd.nomeEmpresa || 'Instalight Energia Solar',
+  }));
+  docTitle(flow, 'PROCURAÇÃO ESPECÍFICA', 'Art. 9° — REN ANEEL n° 1.000/2021');
+  renderLegalText(flow, dropTitleBlock(gerarTextoProcuracao(fd, calc)));
+  flow.finish();
+  rtWarningBanner(doc, flow);
   return { doc, filename: makeFilename('procuracao', fd) };
 }
 
 function _buildFormularioPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
-  const W = doc.internal.pageSize.getWidth();
-  pdfHeader(doc, fd);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text('FORMULÁRIO DE SOLICITAÇÃO DE ACESSO', W / 2, 35, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Micro/Minigeração Distribuída — CEEE Equatorial', W / 2, 42, { align: 'center' });
+  const flow = new PdfFlow(doc, greenChrome({
+    title: 'FORMULÁRIO DE SOLICITAÇÃO DE ACESSO',
+    subtitle: `${(fd.nomeCliente || '—').substring(0, 40)}  |  UC: ${fd.codigoUC || '—'}`,
+    company: fd.nomeEmpresa || 'Instalight Energia Solar',
+  }));
+  docTitle(flow, 'FORMULÁRIO DE SOLICITAÇÃO DE ACESSO', 'Micro/Minigeração Distribuída — CEEE Equatorial');
 
-  let y = 52;
-  const linha = (label: string, valor: string | undefined) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text(label + ':', 14, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(valor || '—', 80, y);
-    doc.setDrawColor(220, 220, 220);
-    doc.line(14, y + 2, W - 14, y + 2);
-    y += 10;
-  };
+  sectionBar(flow, 'DADOS DO TITULAR');
+  kvLine(flow, 'Nome/Razão Social', fd.nomeCliente);
+  kvLine(flow, 'CPF/CNPJ', fd.cpfCnpj);
+  kvLine(flow, 'Endereço da UC', fd.endereco);
+  kvLine(flow, 'Código UC', fd.codigoUC);
+  kvLine(flow, 'Nº Conta-Contrato', fd.numContaContrato);
+  kvLine(flow, 'Nº Fatura', fd.numeroFatura);
+  if (fd.numeroMedidor) kvLine(flow, 'Nº do Medidor', fd.numeroMedidor);
+  if (fd.classeUC) kvLine(flow, 'Classe da UC', fd.classeUC);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('DADOS DO TITULAR', 14, y);
-  y += 8;
-  linha('Nome/Razão Social', fd.nomeCliente);
-  linha('CPF/CNPJ', fd.cpfCnpj);
-  linha('Endereço da UC', fd.endereco);
-  linha('Código UC', fd.codigoUC);
-  linha('Nº Conta-Contrato', fd.numContaContrato);
-  linha('Nº Fatura', fd.numeroFatura);
-  if (fd.numeroMedidor)  linha('No do Medidor', fd.numeroMedidor);
-  if (fd.classeUC)       linha('Classe da UC',  fd.classeUC);
-
-  y += 4;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('DADOS DO SISTEMA', 14, y);
-  y += 8;
-  linha('Tipo de Instalação', fd.tipoInstalacao || 'Nova');
-  linha('Caracterização (Lei 14.300/2022)', fd.tipoCaracterizacao);
-  linha('Tipo de Geração / Enquadramento', calc.enqTotal);
+  sectionBar(flow, 'DADOS DO SISTEMA');
+  kvLine(flow, 'Tipo de Instalação', fd.tipoInstalacao || 'Nova');
+  kvLine(flow, 'Caracterização (Lei 14.300/2022)', fd.tipoCaracterizacao);
+  kvLine(flow, 'Tipo de Geração / Enquadramento', calc.enqTotal);
   if (fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0) {
-    linha('Potência CC — nova instalação', `${calc.kWp} kWp`);
-    linha('Potência CC — existente', `${calc.kWpExistente} kWp`);
-    linha('Potência CC — TOTAL', `${calc.kWpTotal} kWp`);
-    linha('Potência CA — nova instalação', `${calc.kWtCA} kW`);
-    linha('Potência CA — existente', `${calc.kWtCAExistente} kW`);
-    linha('Potência CA — TOTAL', `${calc.kWtCATotal} kW`);
+    kvLine(flow, 'Potência CC — nova instalação', `${calc.kWp} kWp`);
+    kvLine(flow, 'Potência CC — existente', `${calc.kWpExistente} kWp`);
+    kvLine(flow, 'Potência CC — TOTAL', `${calc.kWpTotal} kWp`);
+    kvLine(flow, 'Potência CA — nova instalação', `${calc.kWtCA} kW`);
+    kvLine(flow, 'Potência CA — existente', `${calc.kWtCAExistente} kW`);
+    kvLine(flow, 'Potência CA — TOTAL', `${calc.kWtCATotal} kW`);
   } else {
-    linha('Potência CC instalada', `${calc.kWp} kWp`);
-    linha('Potência CA nominal', `${calc.kWtCA} kW`);
+    kvLine(flow, 'Potência CC instalada', `${calc.kWp} kWp`);
+    kvLine(flow, 'Potência CA nominal', `${calc.kWtCA} kW`);
   }
-  linha('Tipo de Ligação', fd.tipoLigacao);
-  if (fd.latitude || fd.longitude) linha('Coordenadas GPS', `Lat ${fd.latitude || '—'} / Long ${fd.longitude || '—'}`);
-  if (fd.transformador)  linha('Transformador',    fd.transformador);
-  if (fd.disjuntorEntrada) linha('DJ Geral Entrada', `${fd.disjuntorEntrada} A`);
-  if (fd.ramalEntrada)   linha('Ramal de Entrada', fd.ramalEntrada);
-  linha(
-    'Módulos FV',
-    `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`,
-  );
-  linha('Inversor', fd.modeloInversor || '—');
-  linha('Responsável Técnico', fd.nomeResponsavel);
-  linha('CRT/CREA', fd.numeroCRT);
+  kvLine(flow, 'Tipo de Ligação', fd.tipoLigacao);
+  if (fd.latitude || fd.longitude) kvLine(flow, 'Coordenadas GPS', `Lat ${fd.latitude || '—'} / Long ${fd.longitude || '—'}`);
+  if (fd.transformador) kvLine(flow, 'Transformador', fd.transformador);
+  if (fd.disjuntorEntrada) kvLine(flow, 'DJ Geral Entrada', `${fd.disjuntorEntrada} A`);
+  if (fd.ramalEntrada) kvLine(flow, 'Ramal de Entrada', fd.ramalEntrada);
+  kvLine(flow, 'Módulos FV', `${fd.numeroPaineis || '—'}× ${fd.modeloPainel || '—'} ${fd.potenciaUnitariaWp || '—'}Wp`);
+  kvLine(flow, 'Inversor', fd.modeloInversor || '—');
+  kvLine(flow, 'Responsável Técnico', fd.nomeResponsavel);
+  kvLine(flow, 'CRT/CREA', fd.numeroCRT);
 
-  y += 6;
-  y += 4;
+  // Aviso de documento de apoio
+  flow.ensure(26);
+  flow.gap(4);
+  const W = flow.W;
   doc.setFillColor(255, 243, 205);
-  doc.rect(14, y - 5, W - 28, 22, 'F');
+  doc.rect(flow.m.l, flow.y - 5, flow.cw, 22, 'F');
   doc.setDrawColor(180, 130, 0);
-  doc.rect(14, y - 5, W - 28, 22);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.rect(flow.m.l, flow.y - 5, flow.cw, 22);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
   doc.setTextColor(120, 80, 0);
-  doc.text('⚠ ATENÇÃO — DOCUMENTO INTERNO DE APOIO', 16, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.text(
-    'Este pré-formulário é gerado pelo Instalight Flow para conferência interna dos dados.',
-    16, y + 6,
-  );
-  doc.text(
-    'O protocolo oficial deve ser realizado pelo PORTAL ELETRÔNICO da CEEE Equatorial (SolicitaNet).',
-    16, y + 12,
-  );
+  doc.text('ATENÇÃO — DOCUMENTO INTERNO DE APOIO', flow.m.l + 2, flow.y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+  doc.text('Este pré-formulário é gerado pelo Instalight Flow para conferência interna dos dados.', flow.m.l + 2, flow.y + 6);
+  doc.text('O protocolo oficial deve ser feito pelo PORTAL ELETRÔNICO da CEEE Equatorial (SolicitaNet).', flow.m.l + 2, flow.y + 12);
   doc.setTextColor(30, 30, 30);
-  y += 26;
-  doc.setFontSize(7);
-  doc.setTextColor(120, 120, 120);
-  doc.text('Baseado no modelo CEEE Equatorial vigente. Verifique atualizações no portal da distribuidora.',
-    14, y,
-  );
-  doc.setTextColor(30, 30, 30);
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
+  void W;
+
+  flow.finish();
+  rtWarningBanner(doc, flow);
   return { doc, filename: makeFilename('formulario_ceee', fd) };
 }
 
@@ -219,45 +261,16 @@ function _buildPendenciasPDF(
   ];
 
   const doc = makePDF('p', 'a4');
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  pdfHeader(doc, fd);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text('RELATÓRIO DE PENDÊNCIAS — PROTOCOLO CEEE', W / 2, 35, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(
-    `Cliente: ${fd.nomeCliente || '—'} | UC: ${fd.codigoUC || '—'} | Sistema: ${calc.kWp}kWp`,
-    W / 2, 43, { align: 'center' },
-  );
+  const flow = new PdfFlow(doc, greenChrome({
+    title: 'RELATÓRIO DE PENDÊNCIAS — PROTOCOLO CEEE',
+    subtitle: `${(fd.nomeCliente || '—').substring(0, 30)} | UC: ${fd.codigoUC || '—'} | ${calc.kWp} kWp`,
+    company: fd.nomeEmpresa || 'Instalight Energia Solar',
+  }));
+  docTitle(flow, 'RELATÓRIO DE PENDÊNCIAS', 'Protocolo CEEE — Anexo III NT.00020.EQTL-06 REV 06');
 
-  let y = 54;
-  const sect = (title: string) => {
-    y += 4;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setFillColor(120, 184, 58);
-    doc.rect(14, y - 5, W - 28, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.text(title, 16, y);
-    doc.setTextColor(30, 30, 30);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    y += 8;
-  };
-  const item = (id: string, dname: string, done: boolean, como: string) => {
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${id} — ${dname}`, 14, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    if (done) { doc.setTextColor(34, 139, 34); } else { doc.setTextColor(180, 100, 0); }
-    doc.text(done ? 'GERADO' : 'PENDENTE', 14, y);
-    doc.setTextColor(30, 30, 30);
-    if (!done) { doc.setTextColor(80, 80, 80); doc.text(`  Como obter: ${como}`, 14, y + 5); y += 5; }
-    y += 9;
-    if (y > H - 20) { doc.addPage(); pdfHeader(doc, fd); y = 35; }
-  };
+  const sect = (title: string) => sectionBar(flow, title);
+  const item = (id: string, dname: string, done: boolean, como: string) =>
+    checklistItem(flow, id, dname, done, como);
 
   sect('GRUPO A — DOCUMENTOS DO CLIENTE');
   groupA.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
@@ -287,7 +300,7 @@ function _buildPendenciasPDF(
   ];
   if (groupD.some(g => !g.gerado)) {
     sect('GRUPO D — DOCUMENTOS CONDICIONAIS (verificar aplicabilidade)');
-    groupD.forEach((g) => item(g.id, g.doc, false, g.como));
+    groupD.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
   }
 
   // Grupo C — somente para projetos de Ampliação
@@ -358,12 +371,10 @@ function _buildPendenciasPDF(
     groupC.forEach((g) => item(g.id, g.doc, g.gerado, g.como));
   }
 
-  y += 4;
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text('Dúvidas? Entre em contato com a Instalight.', 14, y);
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
+  flow.gap(4);
+  paragraph(flow, 'Dúvidas? Entre em contato com a Instalight.', 8);
+  flow.finish();
+  rtWarningBanner(doc, flow);
   return { doc, filename: makeFilename('pendencias', fd) };
 }
 
@@ -483,36 +494,32 @@ de Conexão à CEEE Equatorial. O reconhecimento de firma pode ser exigido pela 
 
 function _buildListaRateioPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
-  const W = doc.internal.pageSize.getWidth();
-  pdfHeader(doc, fd);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text('LISTA DE RATEIO DOS CRÉDITOS DE ENERGIA', W / 2, 35, { align: 'center' });
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text('Lei Federal n° 14.300/2022 — Art. 2°, IX e Art. 27  |  CEEE Equatorial', W / 2, 42, { align: 'center' });
-  doc.setTextColor(30, 30, 30);
+  const flow = new PdfFlow(doc, greenChrome({
+    title: 'LISTA DE RATEIO DOS CRÉDITOS',
+    subtitle: `${(fd.nomeCliente || '—').substring(0, 40)}  |  UC: ${fd.codigoUC || '—'}`,
+    company: fd.nomeEmpresa || 'Instalight Energia Solar',
+  }));
+  docTitle(flow, 'LISTA DE RATEIO DOS CRÉDITOS DE ENERGIA', 'Lei Federal n° 14.300/2022 — Art. 2°, IX e Art. 27  |  CEEE Equatorial');
 
   // Banner de aplicabilidade
   const caract = fd.tipoCaracterizacao || 'Geração Compartilhada';
   const aplicavel = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC'].includes(caract);
   if (!aplicavel) {
+    flow.ensure(16);
     doc.setFillColor(255, 243, 205);
-    doc.rect(14, 48, W - 28, 14, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.rect(flow.m.l, flow.y - 4, flow.cw, 13, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     doc.setTextColor(120, 80, 0);
-    doc.text('⚠ ATENÇÃO: Projeto caracterizado como "' + caract + '"', 16, 54);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.text('Lista de rateio aplicável a Autoconsumo Remoto, Geração Compartilhada e EMUC.', 16, 59);
+    doc.text(`ATENÇÃO: Projeto caracterizado como "${caract}"`, flow.m.l + 2, flow.y + 1);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+    doc.text('Lista de rateio aplicável a Autoconsumo Remoto, Geração Compartilhada e EMUC.', flow.m.l + 2, flow.y + 6);
     doc.setTextColor(30, 30, 30);
+    flow.gap(14);
   }
 
-  addTextBlock(doc, gerarTextoListaRateio(fd, calc), 14, 14, aplicavel ? 52 : 68, 5.5);
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
+  renderLegalText(flow, dropTitleBlock(gerarTextoListaRateio(fd, calc)));
+  flow.finish();
+  rtWarningBanner(doc, flow);
   return { doc, filename: makeFilename('lista_rateio', fd) };
 }
 
@@ -614,19 +621,15 @@ escritura pública conforme o valor e as partes envolvidas.`;
 
 function _buildInstrumentoJuridicoPDF(fd: FormData, calc: Calculos) {
   const doc = makePDF('p', 'a4');
-  const W = doc.internal.pageSize.getWidth();
-  pdfHeader(doc, fd);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('INSTRUMENTO JURÍDICO DE SOLIDARIEDADE', W / 2, 35, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text('Cessão de Créditos de GD — Lei Federal n° 14.300/2022 (Art. 27)', W / 2, 42, { align: 'center' });
-  doc.setTextColor(30, 30, 30);
-  addTextBlock(doc, gerarTextoInstrumentoJuridico(fd, calc), 14, 14, 52, 5.5);
-  pdfRTWarning(doc);
-  pdfFooter(doc, fd, 1, 1);
+  const flow = new PdfFlow(doc, greenChrome({
+    title: 'INSTRUMENTO JURÍDICO DE SOLIDARIEDADE',
+    subtitle: `${(fd.nomeCliente || '—').substring(0, 40)}  |  UC: ${fd.codigoUC || '—'}`,
+    company: fd.nomeEmpresa || 'Instalight Energia Solar',
+  }));
+  docTitle(flow, 'INSTRUMENTO JURÍDICO DE SOLIDARIEDADE', 'Cessão de Créditos de GD — Lei Federal n° 14.300/2022 (Art. 27)');
+  renderLegalText(flow, dropTitleBlock(gerarTextoInstrumentoJuridico(fd, calc)));
+  flow.finish();
+  rtWarningBanner(doc, flow);
   return { doc, filename: makeFilename('instrumento_juridico', fd) };
 }
 
@@ -670,4 +673,16 @@ export function exportarListaRateioPDFStandalone(fd: FormData, calc: Calculos): 
 export function exportarInstrumentoJuridicoPDFStandalone(fd: FormData, calc: Calculos): void {
   const { doc, filename } = _buildInstrumentoJuridicoPDF(fd, calc);
   doc.save(filename);
+}
+
+/** Retorna a Lista de Rateio como Blob para uso no dossiê ZIP. */
+export function getBlobListaRateio(fd: FormData, calc: Calculos): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildListaRateioPDF(fd, calc);
+  return { blob: doc.output('blob') as Blob, filename };
+}
+
+/** Retorna o Instrumento Jurídico como Blob para uso no dossiê ZIP. */
+export function getBlobInstrumento(fd: FormData, calc: Calculos): { blob: Blob; filename: string } {
+  const { doc, filename } = _buildInstrumentoJuridicoPDF(fd, calc);
+  return { blob: doc.output('blob') as Blob, filename };
 }

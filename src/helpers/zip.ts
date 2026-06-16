@@ -13,6 +13,8 @@ import {
   getBlobFormulario,
   getBlobPendencias,
   getBlobMemorial,
+  getBlobListaRateio,
+  getBlobInstrumento,
 } from './export';
 
 /**
@@ -56,6 +58,20 @@ export async function exportarDossieZip(
   // ── Grupo A: Formulário de acesso CEEE ───────────────────────
   const { blob: formBlob, filename: formName } = getBlobFormulario(fd, calc);
   zip.file(formName, formBlob);
+
+  // ── Grupo D: Lista de Rateio + Instrumento Jurídico (condicional) ──
+  // Inclui quando o tipo de caracterização exige rateio, ou quando o
+  // usuário já gerou os documentos nesta sessão.
+  const exigeRateio = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC']
+    .includes(fd.tipoCaracterizacao);
+  if (exigeRateio || docsGerados.listaRateio) {
+    const { blob, filename } = getBlobListaRateio(fd, calc);
+    zip.file(filename, blob);
+  }
+  if (exigeRateio || docsGerados.instrumentoJuridico) {
+    const { blob, filename } = getBlobInstrumento(fd, calc);
+    zip.file(filename, blob);
+  }
 
   // ── Relatório de pendências ───────────────────────────────────
   const { blob: pendBlob, filename: pendName } = getBlobPendencias(fd, calc, docsGerados);
