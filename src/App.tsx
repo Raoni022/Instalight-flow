@@ -303,6 +303,26 @@ export default function App() {
         (next as Record<string, unknown>)[key] = val;
         filled.push(key);
       }
+
+      // ── Pós-processamento: normalização e derivação (consistência entre docs) ──
+      const setDerived = (k: string, v: string) => {
+        (next as Record<string, unknown>)[k] = v;
+        if (!filled.includes(k)) filled.push(k);
+      };
+      // tipoPessoa a partir do CPF/CNPJ
+      const dig = (next.cpfCnpj || '').replace(/\D/g, '');
+      if (dig.length === 11) setDerived('tipoPessoa', 'fisica');
+      else if (dig.length === 14) setDerived('tipoPessoa', 'juridica');
+      // tipoLigacao normalizado para o enum
+      const lig = (next.tipoLigacao || '').toLowerCase();
+      if (/tri/.test(lig)) setDerived('tipoLigacao', 'Trifásico');
+      else if (/b[ií]/.test(lig)) setDerived('tipoLigacao', 'Bifásico');
+      else if (/mono/.test(lig)) setDerived('tipoLigacao', 'Monofásico');
+      // cidade derivada do endereço ("..., Cidade/UF") quando ausente
+      if (!next.cidade && next.endereco) {
+        const m = next.endereco.match(/,\s*([A-Za-zÀ-ÿ'.\s]+?)\s*[/-]\s*[A-Z]{2}\b/);
+        if (m) setDerived('cidade', m[1].trim());
+      }
       return next;
     });
 

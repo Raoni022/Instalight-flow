@@ -64,11 +64,12 @@ const TIPO_HINT: Record<TipoDoc, string> = {
 // Schemas focados por tipo — extraem só os campos relevantes de cada documento
 const SCHEMA_POR_TIPO: Record<TipoDoc, string> = {
   fatura: `{
-"nomeCliente":"","cpfCnpj":"","tipoPessoa":"",
+"nomeCliente":"","cpfCnpj":"","tipoPessoa":"fisica|juridica",
 "rgCliente":"","orgaoExpeditorRG":"","telefoneCelular":"",
 "logradouro":"","numEndereco":"","complemento":"","bairro":"","cep":"","endereco":"",
-"codigoUC":"","numeroFatura":"","consumoMensalKwh":null,"numContaContrato":"",
-"numeroMedidor":"","classeUC":"","latitude":null,"longitude":null,
+"cidade":"","codigoUC":"","numeroFatura":"","consumoMensalKwh":null,"numContaContrato":"",
+"numeroMedidor":"","classeUC":"","tipoLigacao":"Monofásico|Bifásico|Trifásico",
+"latitude":null,"longitude":null,
 "transformador":"","tipoPadrao":"","tipoFixacao":"","numPoste":"",
 "disjuntorEntrada":null,"ramalEntrada":"","materialCaboEntrada":"",
 "inscricaoEstadual":"","emailContato":"","telefoneContato":"",
@@ -124,8 +125,12 @@ Extraia dados e retorne APENAS JSON valido, sem markdown ou explicacoes.
 Documentos comuns e onde localizar campos:
 - Fatura CEEE Equatorial: "Codigo da Unidade Consumidora" (7-8 digitos = codigoUC),
   "Conta Contrato" (numContaContrato), coluna "Consumo" em kWh (consumoMensalKwh),
-  nome e CPF/CNPJ do titular, endereco da UC, numero do poste (numPoste),
-  numero do medidor (numeroMedidor), tipo de padrao de entrada (tipoPadrao).
+  nome e CPF/CNPJ do titular, endereco da UC, municipio/cidade da UC (cidade),
+  numero do poste (numPoste), numero do medidor (numeroMedidor),
+  tipo de padrao de entrada (tipoPadrao), classe (classeUC: Residencial/Comercial/Industrial/Rural/Poder Publico),
+  tipo de ligacao/fornecimento (tipoLigacao). NORMALIZE tipoLigacao EXATAMENTE como
+  "Monofásico", "Bifásico" ou "Trifásico" (ex.: "trifasico"/"3F"/"380V trifasica" -> "Trifásico").
+  tipoPessoa: "fisica" se CPF (11 digitos), "juridica" se CNPJ (14 digitos).
 - Datasheet painel solar (Tabela 3 CEEE): modelo (modeloPainel), potencia em Wp (potenciaUnitariaWp: 300-700),
   Voc (vocUnitario: 30-55V), Isc (iscUnitario: 5-20A), Vmpp (vmppUnitario: 25-50V),
   Impp (imppUnitario: 5-18A), eficiencia % (eficienciaPainel: 18-23%),
