@@ -96,8 +96,15 @@ function renderLegalText(flow: PdfFlow, text: string): void {
 
 // ── Helpers internos de build ──────────────────────────────────────────────
 
-/** Gera o texto completo da Procuração Específica. */
+/** Gera o texto completo da Procuração Específica.
+ *  Duas modalidades (fd.tipoProcuracao):
+ *   - 'Responsável Técnico': nomeia o RT/engenheiro como procurador, com prazo (modelo CEEE enviado)
+ *   - 'Empresa' (padrão): nomeia a empresa instaladora como outorgada (formato jurídico completo)
+ */
 export function gerarTextoProcuracao(fd: FormData, calc: Calculos): string {
+  if (fd.tipoProcuracao === 'Responsável Técnico') {
+    return gerarProcuracaoRT(fd, calc);
+  }
   const hoje = fd.dataproject || new Date().toLocaleDateString('pt-BR');
   const repBlock = fd.tipoPessoa === 'juridica' && fd.nomeRepresentante
     ? `, neste ato representada por ${fd.nomeRepresentante}, ` +
@@ -136,6 +143,40 @@ ${fd.nomeCliente || 'OUTORGANTE'}
 ${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}: ${fd.cpfCnpj || '___'}
 
 Reconhecimento de firma: _______________________________ (Cartório)
+
+NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
+}
+
+/** Procuração nomeando o Responsável Técnico como procurador (modelo CEEE simplificado). */
+function gerarProcuracaoRT(fd: FormData, calc: Calculos): string {
+  const dataObj = fd.dataproject ? new Date(fd.dataproject + 'T12:00:00') : new Date();
+  const dataExtenso = dataObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const dataCurta = dataObj.toLocaleDateString('pt-BR');
+  const prazo = fd.prazoProcuracaoDias || '60';
+  const registroLabel = fd.tipoResponsabilidade === 'TRT' ? 'CFT/CRT' : 'CREA';
+
+  const outorgante = fd.tipoPessoa === 'fisica'
+    ? `${fd.nomeCliente || '[NOME DO CLIENTE]'}, portador(a) do CPF nº ${fd.cpfCnpj || '___'}`
+    : `${fd.nomeCliente || '[RAZÃO SOCIAL]'}, inscrita no CNPJ sob nº ${fd.cpfCnpj || '___'}${fd.nomeRepresentante ? `, neste ato representada por ${fd.nomeRepresentante} (CPF ${fd.cpfRepresentante || '___'}), na qualidade de ${fd.cargoRepresentante || 'representante legal'}` : ''}`;
+
+  return `PROCURAÇÃO
+
+À CEEE EQUATORIAL
+
+Por meio deste instrumento particular de procuração, ${outorgante}, titular da Unidade Consumidora nº ${fd.codigoUC || '___'} (UC), responsável pelo imóvel localizado em ${fd.endereco || '[ENDEREÇO COMPLETO]'}, a fim de tratar exclusivamente de assuntos referentes ao projeto de energia solar fotovoltaica de ${calc.kWp} kWp (${fd.numeroPaineis || '—'} módulos / inversor ${fd.modeloInversor || '—'}), nomeia e constitui seu bastante procurador o(a) ${fd.profissaoRT || 'Engenheiro(a) Eletricista'} ${fd.nomeResponsavel || '[NOME DO RT]'}, ${registroLabel}: ${fd.numeroCRT || '___'}, CPF nº ${fd.cpfResponsavel || '___'}, pelo prazo de ${prazo} (${prazo === '60' ? 'sessenta' : prazo}) dias, a partir de ${dataCurta}.
+
+Ao procurador são conferidos poderes para protocolar, instruir, assinar e acompanhar, junto à CEEE Equatorial, a solicitação de orçamento e o acesso à rede de distribuição para a microgeração/minigeração distribuída da referida UC, nos termos do Art. 9° da REN ANEEL n° 1.000/2021 e da Lei Federal n° 14.300/2022.
+
+Endereço para contato com o Procurador:
+${fd.enderecoEmpresa || '[ENDEREÇO DO PROCURADOR]'}
+${fd.cidade || 'Porto Alegre'} — RS
+
+${fd.cidade || 'Porto Alegre'}, ${dataExtenso}.
+
+_______________________________________________
+${fd.nomeCliente || '[OUTORGANTE]'}
+${fd.tipoPessoa === 'fisica' ? 'CPF' : 'CNPJ'}: ${fd.cpfCnpj || '___'}
+Unidade Consumidora CEEE Equatorial: ${fd.codigoUC || '___'}
 
 NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
 }

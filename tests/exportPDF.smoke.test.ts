@@ -62,8 +62,11 @@ const FD: FormData = {
   coordenadas: '', tempMinima: '0',
   tipoResponsabilidade: 'TRT',
   nomeResponsavel: 'Eng. Carlos Souza',
+  cpfResponsavel: '111.222.333-44',
   numeroCRT: '12345-D/RS',
   numART: 'ART-2024-001',
+  tipoProcuracao: 'Empresa',
+  prazoProcuracaoDias: '60',
   numProjeto: 'PE-2024-001',
   cidade: 'Porto Alegre',
   dataproject: '2026-05-29',
@@ -98,6 +101,11 @@ const isBlob = (b: Blob) => b instanceof Blob && b.size > 1500;
 describe('Renderizadores de PDF — smoke', () => {
   it('Procuração gera Blob válido', () => {
     expect(isBlob(getBlobProcuracao(FD, calc).blob)).toBe(true);
+  });
+
+  it('Procuração para o RT (modelo CEEE) gera Blob válido', () => {
+    const rt = { ...FD, tipoProcuracao: 'Responsável Técnico' } as FormData;
+    expect(isBlob(getBlobProcuracao(rt, calc).blob)).toBe(true);
   });
 
   it('Formulário CEEE gera Blob válido', () => {

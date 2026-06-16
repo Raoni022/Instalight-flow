@@ -108,8 +108,11 @@ export interface FormData {
   // RESPONSÁVEL TÉCNICO
   tipoResponsabilidade: 'ART' | 'TRT';  // ART para engenheiros, TRT para técnicos
   nomeResponsavel: string;
+  cpfResponsavel: string;               // CPF do RT (usado na procuração para o RT)
   numeroCRT: string;
   numART: string;     // número da ART ou TRT (campo unificado)
+  tipoProcuracao: 'Empresa' | 'Responsável Técnico'; // outorgado da procuração
+  prazoProcuracaoDias: string;        // validade da procuração em dias (modelo RT)
   numProjeto: string; // mantido para o carimbo da prancha (campo PE) — oculto no sidebar
   cidade: string;
   dataproject: string;

@@ -492,6 +492,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <FormField label="Nome do RT" name="nomeResponsavel" value={fd.nomeResponsavel} onChange={onChange} aiFields={aiFilledFields} />
           <FormField label="Profissão (para capa)" name="profissaoRT" value={fd.profissaoRT} onChange={onChange} aiFields={aiFilledFields}
             placeholder="Ex: Engenheiro Eletricista, Técnico em Eletrotécnica" />
+          <FormField label="CPF do RT (procuração)" name="cpfResponsavel" value={fd.cpfResponsavel} onChange={onChange} aiFields={aiFilledFields} />
           <FormField label="Nº CRT/CREA" name="numeroCRT" value={fd.numeroCRT} onChange={onChange} aiFields={aiFilledFields} />
           <FormField
             label={`Nº ${fd.tipoResponsabilidade || 'TRT'}`}

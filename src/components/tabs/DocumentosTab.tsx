@@ -23,6 +23,7 @@ interface DocumentosTabProps {
   fd: FormData;
   calc: Calculos;
   apiKey: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   setToast: (t: Toast) => void;
   docsGerados: DocsGerados;
   setDocsGerados: React.Dispatch<React.SetStateAction<DocsGerados>>;
@@ -33,7 +34,7 @@ const IS_PROD =
   !window.location.hostname.includes('localhost');
 
 export const DocumentosTab: React.FC<DocumentosTabProps> = ({
-  fd, calc, apiKey, setToast, setDocsGerados,
+  fd, calc, apiKey, onChange, setToast, setDocsGerados,
 }) => {
   const [procuracao, setProcuracao]       = useState('');
   const [refiningProc, setRefiningProc]   = useState(false);
@@ -207,6 +208,32 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Modalidade da procuração */}
+            <div className="flex flex-wrap items-center gap-3 mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+              <label className="text-xs font-semibold text-slate-600">Outorgar para:</label>
+              <select
+                name="tipoProcuracao"
+                value={fd.tipoProcuracao}
+                onChange={(e) => { onChange(e); if (procuracao) setProcuracao(gerarTextoProcuracao({ ...fd, tipoProcuracao: e.target.value as FormData['tipoProcuracao'] }, calc)); }}
+                className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+              >
+                <option value="Empresa">Empresa instaladora ({fd.nomeEmpresa || 'Instalight'})</option>
+                <option value="Responsável Técnico">Responsável Técnico ({fd.nomeResponsavel || 'engenheiro/técnico'})</option>
+              </select>
+              {fd.tipoProcuracao === 'Responsável Técnico' && (
+                <span className="flex items-center gap-1 text-xs text-slate-500">
+                  Prazo:
+                  <input
+                    name="prazoProcuracaoDias"
+                    value={fd.prazoProcuracaoDias}
+                    onChange={(e) => { onChange(e); if (procuracao) setProcuracao(gerarTextoProcuracao({ ...fd, prazoProcuracaoDias: e.target.value }, calc)); }}
+                    className="w-14 text-xs border border-slate-300 rounded px-1 py-1 bg-white"
+                  />
+                  dias
+                </span>
+              )}
             </div>
 
             {procuracao ? (

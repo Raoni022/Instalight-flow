@@ -62,7 +62,8 @@ export const INITIAL_FORM: FormData = {
   tipoTelhado: 'Cerâmico', coordenadas: '', tempMinima: '',
   // Responsável Técnico — numProjeto oculto no sidebar (usado apenas no carimbo da prancha)
   tipoResponsabilidade: 'TRT',
-  nomeResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
+  nomeResponsavel: '', cpfResponsavel: '', numeroCRT: '', numART: '', numProjeto: '',
+  tipoProcuracao: 'Empresa', prazoProcuracaoDias: '60',
   cidade: 'Porto Alegre', dataproject: new Date().toISOString().slice(0, 10),
   nomeEmpresa: '', cnpjEmpresa: '', enderecoEmpresa: '',
   nomeRepresentante: '', cpfRepresentante: '', rgRepresentante: '', cargoRepresentante: '',
@@ -642,6 +643,7 @@ export default function App() {
               fd={formData}
               calc={calc}
               apiKey={apiKey}
+              onChange={onChange}
               setToast={setToast}
               docsGerados={docsGerados}
               setDocsGerados={setDocsGerados}
