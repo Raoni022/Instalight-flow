@@ -83,6 +83,7 @@ export const INITIAL_FORM: FormData = {
   irradLocal: '', prCustom: '',
   // CEEE — Tipo de Caracterização
   tipoCaracterizacao: 'Autoconsumo Local',
+  beneficiarios: [],
   // RT — profissão para capa
   profissaoRT: '',
   // Módulo FV — dimensões físicas
@@ -282,6 +283,11 @@ export default function App() {
     },
     [],
   );
+
+  // ── Atualiza a lista de beneficiários (rateio D1/D2) ──
+  const onUpdateBeneficiarios = useCallback((lista: FormData['beneficiarios']) => {
+    setFormData((prev) => ({ ...prev, beneficiarios: lista }));
+  }, []);
 
   // ── onExtract: recebe JSON do UploadModule e preenche o formulário ──
   const onExtract = useCallback((json: Record<string, unknown>) => {
@@ -657,6 +663,7 @@ export default function App() {
               calc={calc}
               apiKey={apiKey}
               onChange={onChange}
+              onUpdateBeneficiarios={onUpdateBeneficiarios}
               setToast={setToast}
               docsGerados={docsGerados}
               setDocsGerados={setDocsGerados}

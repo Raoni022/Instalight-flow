@@ -50,7 +50,7 @@ const base = (over: Partial<FormData>): FormData => ({
   parecerAcessoAnterior: '', dataAprovacaoAnterior: '', artTrtAnterior: '',
   observacoesExistente: '', situacaoPadrao: 'A definir pelo RT', tipoAmpliacao: 'A definir pelo RT',
   irradLocal: '', prCustom: '',
-  tipoCaracterizacao: 'Autoconsumo Local', profissaoRT: 'Engenheiro Eletricista',
+  tipoCaracterizacao: 'Autoconsumo Local', beneficiarios: [], profissaoRT: 'Engenheiro Eletricista',
   comprimentoPainel: '2.278', larguraPainel: '1.134', pesoPainel: '27.2',
   tipoCaixaMedicao: 'Existente', localInstalacaoCaixa: 'Muro',
   temDSV: 'Não', caracteristicasDSV: '',
@@ -131,6 +131,39 @@ describe('Conteúdo — Cenário 2 (ampliação: existente + novo + total)', () 
   });
   it('sem lixo na ampliação', () => {
     expect(LIXO.test(memText)).toBe(false);
+  });
+});
+
+describe('Integração D1 ↔ D2 — UCs beneficiárias', () => {
+  const fd = base({
+    tipoCaracterizacao: 'Geração Compartilhada',
+    beneficiarios: [
+      { uc: '111', titular: 'Maria Silva', cpfCnpj: '111.111.111-11', percent: '60' },
+      { uc: '222', titular: 'João Souza', cpfCnpj: '222.222.222-22', percent: '40' },
+    ],
+  });
+  const calc = calcularSistema(fd);
+
+  it('Lista de Rateio (D1) usa as UCs beneficiárias reais + soma %', () => {
+    const t = gerarTextoListaRateio(fd, calc);
+    expect(t).toContain('Maria Silva');
+    expect(t).toContain('João Souza');
+    expect(t).toContain('60 %');
+    expect(t).toMatch(/100,00 %/); // soma
+    expect(LIXO.test(t)).toBe(false);
+  });
+
+  it('kWh/mês estimado é calculado por % da geração mensal', () => {
+    const mensal = Math.round(calc.geracaoAnual / 12);
+    const esperado60 = Math.round(mensal * 0.6).toLocaleString('pt-BR');
+    expect(gerarTextoListaRateio(fd, calc)).toContain(`${esperado60} kWh`);
+  });
+
+  it('Instrumento (D2) lista os cessionários a partir dos beneficiários', () => {
+    const t = gerarTextoInstrumentoJuridico(fd, calc);
+    expect(t).toContain('Cessionário 1: Maria Silva');
+    expect(t).toContain('Cessionário 2: João Souza');
+    expect(LIXO.test(t)).toBe(false);
   });
 });
 

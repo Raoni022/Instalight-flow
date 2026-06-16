@@ -26,11 +26,11 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
   const W = 1600;
   const H = 980;
 
-  const org = '#78B83A';
-  const blk = '#1a1a2e';
+  const org = '#5a9628';   // verde Instalight discreto (acento)
+  const blk = '#1f2937';   // quase-preto (texto)
   const gry = '#64748b';
   const sl  = '#cbd5e1';
-  const grn = '#16a34a';
+  const grn = '#3a6b1f';   // verde escuro discreto
 
   const polosCA = fd.tipoLigacao === 'Trifásico' ? '3P' : '2P';
   const fmtDPS = (t: string | undefined) => { const m = (t ?? '').match(/\d/); return m ? `T${m[0]}` : 'T2'; };
@@ -68,14 +68,15 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
       xmlns="http://www.w3.org/2000/svg"
       style={{ width: '100%', background: 'white' }}
     >
-      {/* ══════ HEADER ══════ */}
-      <rect x={0} y={0} width={W} height={HD} fill={blk} />
+      {/* ══════ HEADER (claro) ══════ */}
+      <rect x={0} y={0} width={W} height={HD} fill="white" />
+      <line x1={0} y1={HD} x2={W} y2={HD} stroke={sl} strokeWidth="1" />
       <rect x={0} y={HD - 2} width={W} height={2} fill={org} />
 
       {/* Logo */}
-      <circle cx={40} cy={32} r={18} fill={org} opacity="0.18" />
+      <circle cx={40} cy={32} r={18} fill={org} opacity="0.12" />
       {sunRays}
-      <text x={68} y={28} fontSize="16" fill="white" fontWeight="800" fontFamily="sans-serif">
+      <text x={68} y={28} fontSize="16" fill={blk} fontWeight="800" fontFamily="sans-serif">
         Instalight
       </text>
       <text x={68} y={44} fontSize="9" fill={org} fontFamily="sans-serif">
@@ -83,34 +84,34 @@ export const PranchaCompleta = forwardRef<SVGSVGElement, Props>(({ fd, calc, tip
       </text>
 
       {/* Título central */}
-      <text x={W / 2} y={24} fontSize="14" fill="white" textAnchor="middle" fontWeight="700" fontFamily="sans-serif">
+      <text x={W / 2} y={24} fontSize="14" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">
         {tipoDiagrama === 'unifilar'
           ? 'DIAGRAMA UNIFILAR — SISTEMA FOTOVOLTAICO ON-GRID'
           : tipoDiagrama === 'multifilar'
             ? 'DIAGRAMA MULTIFILAR — SISTEMA FOTOVOLTAICO ON-GRID'
             : 'PRANCHA ELÉTRICA — SISTEMA FOTOVOLTAICO ON-GRID'}
       </text>
-      <text x={W / 2} y={40} fontSize="10" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
+      <text x={W / 2} y={40} fontSize="10" fill={gry} textAnchor="middle" fontFamily="sans-serif">
         {fd.nomeCliente || 'Cliente'} | UC: {fd.codigoUC || '—'} | {fd.endereco || 'Endereço'}
       </text>
-      <text x={W / 2} y={56} fontSize="9" fill={org} textAnchor="middle" fontFamily="sans-serif">
+      <text x={W / 2} y={56} fontSize="9" fill={grn} textAnchor="middle" fontFamily="sans-serif">
         {calc.enqTotal} | {fd.tipoInstalacao === 'Ampliação' && calc.kWpExistente > 0
           ? `+${calc.kWp} kWp (total: ${calc.kWpTotal} kWp)`
           : `${calc.kWp} kWp CC / ${calc.kWtCA} kW CA`} | {fd.tipoLigacao} | CEEE Equatorial
       </text>
 
-      {/* Mini carimbo direita */}
-      <rect x={W - 290} y={4} width={285} height={57} rx="3" fill="#0f172a" stroke={org} strokeWidth="1" />
-      <text x={W - 147} y={17} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
+      {/* Mini carimbo direita (claro) */}
+      <rect x={W - 290} y={4} width={285} height={57} rx="3" fill="white" stroke={sl} strokeWidth="1" />
+      <text x={W - 147} y={17} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">
         RESPONSÁVEL TÉCNICO
       </text>
-      <text x={W - 147} y={30} fontSize="9" fill="white" textAnchor="middle" fontWeight="700" fontFamily="sans-serif">
+      <text x={W - 147} y={30} fontSize="9" fill={blk} textAnchor="middle" fontWeight="700" fontFamily="sans-serif">
         {fd.nomeResponsavel || '—'}
       </text>
-      <text x={W - 147} y={42} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="sans-serif">
+      <text x={W - 147} y={42} fontSize="8" fill={gry} textAnchor="middle" fontFamily="sans-serif">
         CRT: {fd.numeroCRT || '—'} | {fd.tipoResponsabilidade || 'TRT'}: {fd.numART || '—'}
       </text>
-      <line x1={W - 290} y1={48} x2={W - 5} y2={48} stroke="#334155" strokeWidth="1" />
+      <line x1={W - 290} y1={48} x2={W - 5} y2={48} stroke={sl} strokeWidth="1" />
       <text x={W - 240} y={58} fontSize="7" fill={gry} fontFamily="sans-serif">
         PE: {fd.numProjeto || '—'}
       </text>

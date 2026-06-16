@@ -27,6 +27,7 @@ interface DocumentosTabProps {
   calc: Calculos;
   apiKey: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onUpdateBeneficiarios: (lista: FormData['beneficiarios']) => void;
   setToast: (t: Toast) => void;
   docsGerados: DocsGerados;
   setDocsGerados: React.Dispatch<React.SetStateAction<DocsGerados>>;
@@ -37,13 +38,22 @@ const IS_PROD =
   !window.location.hostname.includes('localhost');
 
 export const DocumentosTab: React.FC<DocumentosTabProps> = ({
-  fd, calc, apiKey, onChange, setToast, setDocsGerados,
+  fd, calc, apiKey, onChange, onUpdateBeneficiarios, setToast, setDocsGerados,
 }) => {
   const [procuracao, setProcuracao]       = useState('');
   const [refiningProc, setRefiningProc]   = useState(false);
   const [activeDoc, setActiveDoc]         = useState<'procuracao' | 'formulario' | 'rateio' | 'juridico'>('procuracao');
 
   const precisaRateio = ['Geração Compartilhada', 'Autoconsumo Remoto', 'EMUC'].includes(fd.tipoCaracterizacao);
+
+  // ── Edição das UCs beneficiárias (rateio D1/D2) ──
+  const bens = fd.beneficiarios ?? [];
+  const addBen = () => onUpdateBeneficiarios([...bens, { uc: '', titular: '', cpfCnpj: '', percent: '' }]);
+  const updBen = (i: number, field: 'uc' | 'titular' | 'cpfCnpj' | 'percent', val: string) =>
+    onUpdateBeneficiarios(bens.map((b, idx) => (idx === i ? { ...b, [field]: val } : b)));
+  const delBen = (i: number) => onUpdateBeneficiarios(bens.filter((_, idx) => idx !== i));
+  const somaPct = bens.reduce((s, b) => s + (parseFloat((b.percent || '').replace(',', '.')) || 0), 0);
+  const geracaoMensal = Math.round(calc.geracaoAnual / 12);
 
   const gerarProcuracao = () => {
     setProcuracao(gerarTextoProcuracao(fd, calc));
@@ -280,6 +290,50 @@ CRT/CREA: ${fd.numeroCRT || '—'}`;
                 Preencha os campos <strong>[INSERIR...]</strong> com os dados das UCs beneficiárias. Percentuais devem somar 100%.
               </div>
             )}
+
+            {/* Editor de UCs beneficiárias */}
+            <div className="border border-slate-200 rounded-lg p-3 mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold text-slate-700">UCs Beneficiárias</h4>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+                  Math.abs(somaPct - 100) < 0.01
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  Soma: {somaPct.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%
+                </span>
+              </div>
+
+              {bens.length === 0 && (
+                <p className="text-xs text-slate-400 mb-2">Nenhuma UC beneficiária. Adicione abaixo — os dados entram no D1 e no D2 automaticamente.</p>
+              )}
+
+              {bens.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  <div className="grid grid-cols-[1.4fr_2fr_1.6fr_0.8fr_1fr_auto] gap-1.5 text-[10px] font-semibold text-slate-400 uppercase px-1">
+                    <span>UC</span><span>Titular</span><span>CPF/CNPJ</span><span>%</span><span>kWh/mês</span><span></span>
+                  </div>
+                  {bens.map((b, i) => {
+                    const pct = parseFloat((b.percent || '').replace(',', '.')) || 0;
+                    const kwh = geracaoMensal > 0 && pct > 0 ? Math.round(geracaoMensal * pct / 100).toLocaleString('pt-BR') : '—';
+                    const inp = 'border border-slate-200 rounded px-1.5 py-1 text-xs w-full';
+                    return (
+                      <div key={i} className="grid grid-cols-[1.4fr_2fr_1.6fr_0.8fr_1fr_auto] gap-1.5 items-center">
+                        <input className={inp} value={b.uc} placeholder="UC" onChange={(e) => updBen(i, 'uc', e.target.value)} />
+                        <input className={inp} value={b.titular} placeholder="Titular" onChange={(e) => updBen(i, 'titular', e.target.value)} />
+                        <input className={inp} value={b.cpfCnpj} placeholder="CPF/CNPJ" onChange={(e) => updBen(i, 'cpfCnpj', e.target.value)} />
+                        <input className={inp} value={b.percent} placeholder="%" onChange={(e) => updBen(i, 'percent', e.target.value)} />
+                        <span className="text-xs text-slate-500">{kwh}</span>
+                        <button onClick={() => delBen(i)} className="text-slate-400 hover:text-red-500 text-sm px-1" title="Remover">×</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button onClick={addBen} className="text-xs font-medium text-brand-600 hover:underline">+ Adicionar UC beneficiária</button>
+            </div>
+
             <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-4 leading-relaxed">
               {gerarTextoListaRateio(fd, calc)}
             </pre>

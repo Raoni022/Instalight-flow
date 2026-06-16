@@ -6,6 +6,15 @@ export type TipoPessoa  = 'fisica' | 'juridica';
 export type NivelIssue  = 'erro' | 'aviso' | 'info';
 export type ToastType   = 'success' | 'error' | 'warning' | 'info';
 
+// ── Unidade beneficiária (rateio de créditos — D1/D2) ─────────────────────
+export interface Beneficiario {
+  uc: string;
+  titular: string;
+  cpfCnpj: string;
+  /** Percentual de créditos (string, ex: "25" ou "33,33"). */
+  percent: string;
+}
+
 // ── Formulário principal ──────────────────────────────────────────────────
 
 export interface FormData {
@@ -155,6 +164,8 @@ export interface FormData {
 
   // CEEE — Tipo de Caracterização (Lei 14.300/2022 Art. 2°)
   tipoCaracterizacao: 'Autoconsumo Local' | 'Autoconsumo Remoto' | 'Geração Compartilhada' | 'EMUC';
+  /** UCs beneficiárias do rateio de créditos (D1/D2). */
+  beneficiarios: Beneficiario[];
 
   // RESPONSÁVEL TÉCNICO — profissão para capa do memorial CEEE
   profissaoRT: string;

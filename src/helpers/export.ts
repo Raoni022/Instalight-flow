@@ -120,6 +120,30 @@ Unidade Consumidora CEEE Equatorial: ${fd.codigoUC || '___'}
 NOTA: Conforme Art. 9° da REN ANEEL 1.000/2021, a procuração deve ter firma reconhecida em cartório.`;
 }
 
+// ── Linhas da tabela de rateio (a partir das UCs beneficiárias) ───────────────
+function linhasRateio(fd: FormData, calc: Calculos): string {
+  const geracaoMensal = Math.round(calc.geracaoAnual / 12);
+  const bens = (fd.beneficiarios ?? []).filter((b) => b.uc || b.titular || b.cpfCnpj || b.percent);
+  const header = '| Nº | UC Beneficiária | Titular da UC Beneficiária | CPF/CNPJ | % Créditos | kWh/mês estimado |\n' +
+    '|----|-----------------|----------------------------|----------|------------|------------------|';
+  if (bens.length === 0) {
+    return header + '\n' +
+      ['01', '02', '03', '04'].map((n) =>
+        `| ${n} | [INSERIR UC] | [INSERIR NOME] | [INSERIR] | ___,__ % | _______ kWh |`).join('\n') +
+      '\n| TOTAL | | | | 100,00 % | |';
+  }
+  let somaPct = 0;
+  const linhas = bens.map((b, i) => {
+    const pct = parseFloat((b.percent || '').replace(',', '.')) || 0;
+    somaPct += pct;
+    const kwh = geracaoMensal > 0 && pct > 0 ? Math.round(geracaoMensal * pct / 100).toLocaleString('pt-BR') : '—';
+    const n = String(i + 1).padStart(2, '0');
+    return `| ${n} | ${b.uc || '—'} | ${b.titular || '—'} | ${b.cpfCnpj || '—'} | ${b.percent || '—'} % | ${kwh} kWh |`;
+  });
+  const somaFmt = somaPct.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return header + '\n' + linhas.join('\n') + `\n| TOTAL | | | | ${somaFmt} % | |`;
+}
+
 // ── Texto: Lista de Rateio (D1) ───────────────────────────────────────────────
 export function gerarTextoListaRateio(fd: FormData, calc: Calculos): string {
   const hoje = fd.dataproject || new Date().toLocaleDateString('pt-BR');
@@ -143,15 +167,9 @@ Geração estimada anual:  ${calc.geracaoAnual.toLocaleString('pt-BR')} kWh/ano
 Geração estimada mensal: ${Math.round(calc.geracaoAnual / 12).toLocaleString('pt-BR')} kWh/mês
 
 RELAÇÃO DE UNIDADES CONSUMIDORAS BENEFICIÁRIAS
-(Preencher todos os campos — percentuais devem somar 100%)
+(Percentuais devem somar 100%. kWh/mês estimado = % × geração mensal.)
 
-| Nº | UC Beneficiária | Titular da UC Beneficiária | CPF/CNPJ | % Créditos | kWh/mês estimado |
-|----|-----------------|----------------------------|----------|------------|------------------|
-| 01 | [INSERIR UC]    | [INSERIR NOME]             | [INSERIR]| ___,__ %   | _______ kWh      |
-| 02 | [INSERIR UC]    | [INSERIR NOME]             | [INSERIR]| ___,__ %   | _______ kWh      |
-| 03 | [INSERIR UC]    | [INSERIR NOME]             | [INSERIR]| ___,__ %   | _______ kWh      |
-| 04 | [INSERIR UC]    | [INSERIR NOME]             | [INSERIR]| ___,__ %   | _______ kWh      |
-| TOTAL |             |                            |          | 100,00 %   |                  |
+${linhasRateio(fd, calc)}
 
 Observações:
 • Os percentuais de rateio são definidos pelo titular da UC geradora e podem ser alterados mediante nova solicitação à distribuidora (CEEE Equatorial).
@@ -186,6 +204,16 @@ export function gerarTextoInstrumentoJuridico(fd: FormData, calc: Calculos): str
     ? `${fd.nomeCliente || '[NOME]'}, CPF nº ${fd.cpfCnpj || '[CPF]'}, residente em ${fd.endereco || '[ENDEREÇO]'}`
     : `${fd.nomeCliente || '[NOME]'}, CNPJ nº ${fd.cpfCnpj || '[CNPJ]'}, com sede em ${fd.endereco || '[ENDEREÇO]'}`;
 
+  // Cessionários a partir das UCs beneficiárias do rateio (integração D1 → D2)
+  const bens = (fd.beneficiarios ?? []).filter((b) => b.uc || b.titular || b.cpfCnpj);
+  const cessionarios = bens.length > 0
+    ? bens.map((b, i) =>
+        `Cessionário ${i + 1}: ${b.titular || '[NOME]'} — CPF/CNPJ ${b.cpfCnpj || '[INSERIR]'} — UC Beneficiária ${b.uc || '[INSERIR]'} — ${b.percent || '___'}% dos créditos`,
+      ).join('\n')
+    : `Nome/Razão Social: [INSERIR NOME DO CESSIONÁRIO 1]
+CPF/CNPJ: [INSERIR CPF/CNPJ]
+UC Beneficiária: [INSERIR NÚMERO DA UC]`;
+
   return `INSTRUMENTO PARTICULAR DE SOLIDARIEDADE E CESSÃO DE CRÉDITOS DE ENERGIA ELÉTRICA — GERAÇÃO DISTRIBUÍDA
 
 ${fd.cidade || 'Porto Alegre'}, ${hoje}.
@@ -199,9 +227,7 @@ ${cedente}
 UC Geradora nº: ${fd.codigoUC || '[INSERIR UC GERADORA]'}
 
 CESSIONÁRIO(S) (Titular(es) das UC(s) Beneficiária(s)):
-Nome/Razão Social: [INSERIR NOME DO CESSIONÁRIO 1]
-CPF/CNPJ: [INSERIR CPF/CNPJ]
-UC Beneficiária: [INSERIR NÚMERO DA UC]
+${cessionarios}
 
 OBJETO
 
